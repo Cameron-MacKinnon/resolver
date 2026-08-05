@@ -1,0 +1,23 @@
+# local test outputs / captured images
+test_output/
+
+# docs (not ready to publish yet)
+docs/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# tooling caches
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# environment
+.venv/
+
+# OS
+.DS_Store
