@@ -6,6 +6,8 @@ import requests
 
 
 class BulkTypes(Enum):
+    """Types allowed by the Scryfall bulk API endpoint"""
+
     ORACLE_CARDS = "oracle_cards"
     UNIQUE_ARTWORK = "unique_artwork"
     DEFAULT_CARDS = "default_cards"
