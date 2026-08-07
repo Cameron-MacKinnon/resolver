@@ -1,3 +1,6 @@
+# cached card data, run the cache builder yourself
+scryfall_cache/
+
 # local test outputs / captured images
 test_output/
 
