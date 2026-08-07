@@ -10,7 +10,7 @@ from requests.adapters import HTTPAdapter
 CONNECTION_POOL_SIZE = 45
 
 
-class BulkTypes(Enum):
+class BulkType(Enum):
     """Types allowed by the Scryfall bulk API endpoint"""
 
     ORACLE_CARDS = "oracle_cards"
@@ -40,7 +40,7 @@ class ScryfallClient:
         )
         self.session.mount("https://", adapter)
 
-    def fetch_bulk_data(self, bulk_type: BulkTypes) -> list[dict]:
+    def fetch_bulk_data(self, bulk_type: BulkType) -> list[dict]:
         """Fetch a Scryfall bulk-data file (e.g. card data or rulings) as a list of dicts."""
         # bulk data api returns a metadata object that points to the actual
         # file download, so grab that first
