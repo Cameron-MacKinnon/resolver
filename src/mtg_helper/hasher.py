@@ -3,6 +3,12 @@ import imagehash
 from cv2.typing import MatLike
 from PIL import Image
 
+# imagehash.phash's default hash_size=8 (64 bits) doesn't have enough entropy
+# to keep tens of thousands of cards well-separated - verified empirically
+# against the real card corpus, where several unrelated cards tied for the
+# closest match at hash_size=8, but uniquely separated at hash_size=16
+PHASH_SIZE = 16
+
 
 class Hasher:
     def __init__(self, image: MatLike) -> None:
@@ -25,5 +31,5 @@ class Hasher:
         pil_image = self._convert_to_pil(self.image)
 
         # compute perceptual hash and return
-        p_hash = imagehash.phash(pil_image)
+        p_hash = imagehash.phash(pil_image, hash_size=PHASH_SIZE)
         return p_hash
