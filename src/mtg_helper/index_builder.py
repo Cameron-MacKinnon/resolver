@@ -1,12 +1,21 @@
 import json
 import time
 from dataclasses import asdict, dataclass
+from enum import Enum
 from pathlib import Path
 
 import cv2
 
 from .cache_config import IMAGE_VARIANTS, INDEX_CACHE_DIR, RAW_CACHE_DIR
 from .hasher import Hasher
+
+
+class IndexType(Enum):
+    PHASH = "phash"
+    RULINGS = "rulings"
+    NAME = "name"
+    CARD_DATA = "card_data"
+    KEYWORD = "keyword"
 
 
 @dataclass
@@ -51,6 +60,10 @@ class RulesCacheMissingError(IndexBuilderError):
 
 class RulesCacheEmptyError(IndexBuilderError):
     """raised when a user tries to build the keyword index but the rules cache is empty"""
+
+
+class InvalidIndexTypeError(IndexBuilderError):
+    """raised when the user passes an invalid index type"""
 
 
 class IndexBuilder:
@@ -303,3 +316,21 @@ class IndexBuilder:
 
         elapsed = time.perf_counter() - start_time
         print(f"keyword index built in {elapsed:.1f}s ({len(keyword_index)} keywords)")
+
+    def build_index(self, index_type: IndexType) -> None:
+        """Build the requested index (phash, rulings, name, card data, or keyword) by type."""
+        match index_type:
+            case IndexType.PHASH:
+                self.build_phash_index()
+            case IndexType.RULINGS:
+                self.build_rulings_index()
+            case IndexType.NAME:
+                self.build_name_index()
+            case IndexType.CARD_DATA:
+                self.build_card_data_index()
+            case IndexType.KEYWORD:
+                self.build_keyword_index()
+            case _:
+                raise InvalidIndexTypeError(
+                    f'invalid index type argument "{index_type}"'
+                )
