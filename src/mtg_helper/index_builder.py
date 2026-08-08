@@ -1,11 +1,48 @@
 import json
 import time
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import cv2
 
 from .hasher import Hasher
 from .scryfall_config import IMAGE_VARIANTS, INDEX_CACHE_DIR, RAW_CACHE_DIR
+
+
+@dataclass
+class Ruling:
+    oracle_id: str
+    source: str
+    published_at: str
+    comment: str
+
+
+@dataclass
+class HashEntry:
+    id: str
+    face_index: int
+    variant: str
+    hash: str
+
+
+class IndexBuilderError(Exception):
+    """base index builder exception"""
+
+
+class NoRulingsCacheError(IndexBuilderError):
+    """raised when a user tries to build the rulings index before the rulings cache exists"""
+
+
+class RulingsCacheEmptyError(IndexBuilderError):
+    """raised when a user tries to build the rulings index but the rulings cache is empty"""
+
+
+class CardDataCacheMissingError(IndexBuilderError):
+    """raised when a user tries to build the names index before the card data cache exists"""
+
+
+class CardDataCacheEmptyError(IndexBuilderError):
+    """raised when a user tries to build the names index but the card data cache is empty"""
 
 
 class IndexBuilder:
@@ -24,7 +61,20 @@ class IndexBuilder:
                 return id_, int(face_index), variant
         raise ValueError(f"unrecognised image filename: {image_path.name}")
 
-    def build_hash_index(self) -> None:
+    def _get_face_card_names(self, record: dict) -> list[str]:
+        """Return one card name per face of the card.
+
+        Most cards have a single, useable top-level name. Multi-faced cards
+        (double-faced/transform/art-series/adventure/split/etc) have a
+        top-level name too, but it's a combined "Face A // Face B" string,
+        which is not ideal for fuzzy-matching against directly. Each entry
+        in card_faces carries its own individual name instead.
+        """
+        if "card_faces" in record:
+            return [face["name"] for face in record["card_faces"]]
+        return [record["name"]]
+
+    def build_phash_index(self) -> None:
         """Compute a phash (perceptual hash) for every cached image and persist
         as a JSONL hash index.
 
@@ -44,10 +94,8 @@ class IndexBuilder:
         if hash_index_path.exists():
             with open(hash_index_path, "r") as file:
                 for line in file:
-                    entry = json.loads(line)
-                    already_hashed.add(
-                        (entry["id"], entry["face_index"], entry["variant"])
-                    )
+                    entry = HashEntry(**json.loads(line))
+                    already_hashed.add((entry.id, entry.face_index, entry.variant))
 
         # hash whatever images exist on disk (so any failed downloads will naturally
         # be skipped to prevent exceptions / interruptions)
@@ -70,13 +118,10 @@ class IndexBuilder:
 
                 # compute the hash, write this card's entry to the index file
                 image_hash = Hasher(image).compute_hash()
-                entry = {
-                    "id": id_,
-                    "face_index": face_index,
-                    "variant": variant,
-                    "hash": str(image_hash),
-                }
-                file.write(json.dumps(entry) + "\n")
+                entry = HashEntry(
+                    id=id_, face_index=face_index, variant=variant, hash=str(image_hash)
+                )
+                file.write(json.dumps(asdict(entry)) + "\n")
                 completed += 1
 
         # finish timer and print conclusion stats
@@ -84,3 +129,121 @@ class IndexBuilder:
         print(
             f"hash index built in {elapsed:.1f}s ({completed} computed, {skipped} skipped)"
         )
+
+    def build_rulings_index(self) -> None:
+        """Group cached rulings by oracle_id and persist as a single JSON file."""
+        start_time = time.perf_counter()
+
+        # files / dirs used
+        rulings_cache_path = RAW_CACHE_DIR / "rulings.jsonl"
+        rulings_index_path = INDEX_CACHE_DIR / "rulings_index.json"
+        INDEX_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+        # first, check that a rulings cache exists to build the index from
+        if not rulings_cache_path.exists():
+            raise NoRulingsCacheError(
+                f'rulings cache does not exist, expected at "{rulings_cache_path.name}"'
+            )
+        if rulings_cache_path.stat().st_size == 0:
+            raise RulingsCacheEmptyError(
+                f'rulings cache file exists at "{rulings_cache_path.name}", but contains no data'
+            )
+
+        # loop over jsonl rulings cache and group rulings by oracle_id
+        rulings_index: dict[str, list[dict]] = {}
+        with open(rulings_cache_path, "r") as cache_file:
+            for line in cache_file:
+                data = json.loads(line)
+                oracle_id = data["oracle_id"]
+
+                ruling = Ruling(
+                    oracle_id=oracle_id,
+                    source=data["source"],
+                    published_at=data["published_at"],
+                    comment=data["comment"],
+                )
+                rulings_index.setdefault(oracle_id, []).append(asdict(ruling))
+
+        # write the built index to disk
+        with open(rulings_index_path, "w") as file:
+            json.dump(rulings_index, file, indent=2)
+
+        elapsed = time.perf_counter() - start_time
+        print(
+            f"rulings index built in {elapsed:.1f}s ({len(rulings_index)} oracle_ids)"
+        )
+
+    def build_name_index(self) -> None:
+        """Group cached card ids by name and persist as a single JSON file."""
+        start_time = time.perf_counter()
+
+        # files / dirs used
+        card_data_cache_path = RAW_CACHE_DIR / "card_data.jsonl"
+        name_index_path = INDEX_CACHE_DIR / "name_index.json"
+        INDEX_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+        # first, check that a card data cache exists to build the index from
+        if not card_data_cache_path.exists():
+            raise CardDataCacheMissingError(
+                f'card data cache does not exist, expected at "{card_data_cache_path.name}"'
+            )
+        if card_data_cache_path.stat().st_size == 0:
+            raise CardDataCacheEmptyError(
+                f'card data cache file exists at "{card_data_cache_path.name}", but contains no data'
+            )
+
+        # loop over jsonl card data cache and group ids by name
+        name_index: dict[str, list[str]] = {}
+        with open(card_data_cache_path, "r") as cache_file:
+            for line in cache_file:
+                data = json.loads(line)
+                card_id = data["id"]
+                for name in self._get_face_card_names(data):
+                    ids = name_index.setdefault(name, [])
+                    if card_id not in ids:
+                        ids.append(card_id)
+
+        # write the built index to disk
+        with open(name_index_path, "w") as file:
+            json.dump(name_index, file, indent=2)
+
+        elapsed = time.perf_counter() - start_time
+        print(f"name index built in {elapsed:.1f}s ({len(name_index)} unique names)")
+
+    def build_card_data_index(self) -> dict[str, dict]:
+        """Load the card data cache into a dict keyed by id, persist it, and return it.
+
+        Unlike the hash/rulings/name indexes, this one isn't derived/reshaped
+        data - it's just a re-keyed view of records already sitting in
+        card_data.jsonl. Still persisted anyway, same as the others, so it's
+        inspectable on disk rather than only ever existing as an in-memory
+        value - storage cost isn't a real constraint for this project.
+        """
+        start_time = time.perf_counter()
+
+        card_data_cache_path = RAW_CACHE_DIR / "card_data.jsonl"
+        card_data_index_path = INDEX_CACHE_DIR / "card_data_index.json"
+        INDEX_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+        # first, check that a card data cache exists to build the index from
+        if not card_data_cache_path.exists():
+            raise CardDataCacheMissingError(
+                f'card data cache does not exist, expected at "{card_data_cache_path.name}"'
+            )
+        if card_data_cache_path.stat().st_size == 0:
+            raise CardDataCacheEmptyError(
+                f'card data cache file exists at "{card_data_cache_path.name}", but contains no data'
+            )
+
+        card_data_index: dict[str, dict] = {}
+        with open(card_data_cache_path, "r") as cache_file:
+            for line in cache_file:
+                record = json.loads(line)
+                card_data_index[record["id"]] = record
+
+        with open(card_data_index_path, "w") as file:
+            json.dump(card_data_index, file, indent=2)
+
+        elapsed = time.perf_counter() - start_time
+        print(f"card data index built in {elapsed:.1f}s ({len(card_data_index)} cards)")
+        return card_data_index
