@@ -180,7 +180,7 @@ class CacheBuilder:
             return [record["image_uris"]]
         return [face["image_uris"] for face in record["card_faces"]]
 
-    def build_index(self, cache_type: CacheType) -> None:
+    def build_cache(self, cache_type: CacheType) -> None:
         """Build the requested cache (card data, rulings, or images) by type."""
         match cache_type:
             case CacheType.CARD_DATA:
