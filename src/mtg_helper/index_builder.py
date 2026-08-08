@@ -5,8 +5,8 @@ from pathlib import Path
 
 import cv2
 
+from .cache_config import IMAGE_VARIANTS, INDEX_CACHE_DIR, RAW_CACHE_DIR
 from .hasher import Hasher
-from .scryfall_config import IMAGE_VARIANTS, INDEX_CACHE_DIR, RAW_CACHE_DIR
 
 
 @dataclass
@@ -43,6 +43,14 @@ class CardDataCacheMissingError(IndexBuilderError):
 
 class CardDataCacheEmptyError(IndexBuilderError):
     """raised when a user tries to build the names index but the card data cache is empty"""
+
+
+class RulesCacheMissingError(IndexBuilderError):
+    """raised when a user tries to build the keyword index before the rules cache exists"""
+
+
+class RulesCacheEmptyError(IndexBuilderError):
+    """raised when a user tries to build the keyword index but the rules cache is empty"""
 
 
 class IndexBuilder:
@@ -166,7 +174,7 @@ class IndexBuilder:
 
         # write the built index to disk
         with open(rulings_index_path, "w") as file:
-            json.dump(rulings_index, file, indent=2)
+            json.dump(rulings_index, file, indent=2, ensure_ascii=False)
 
         elapsed = time.perf_counter() - start_time
         print(
@@ -205,12 +213,12 @@ class IndexBuilder:
 
         # write the built index to disk
         with open(name_index_path, "w") as file:
-            json.dump(name_index, file, indent=2)
+            json.dump(name_index, file, indent=2, ensure_ascii=False)
 
         elapsed = time.perf_counter() - start_time
         print(f"name index built in {elapsed:.1f}s ({len(name_index)} unique names)")
 
-    def build_card_data_index(self) -> None
+    def build_card_data_index(self) -> None:
         """Load the card data cache into a dict keyed by id and persist as JSON"""
         start_time = time.perf_counter()
 
@@ -235,7 +243,63 @@ class IndexBuilder:
                 card_data_index[record["id"]] = record
 
         with open(card_data_index_path, "w") as file:
-            json.dump(card_data_index, file, indent=2)
+            json.dump(card_data_index, file, indent=2, ensure_ascii=False)
 
         elapsed = time.perf_counter() - start_time
         print(f"card data index built in {elapsed:.1f}s ({len(card_data_index)} cards)")
+
+    def build_keyword_index(self) -> None:
+        """Parse the offical rules text to extract keyword definitons and convert to a
+        dict keyed by keyword, persist as JSON"""
+        start_time = time.perf_counter()
+
+        rules_text_path = RAW_CACHE_DIR / "rules.txt"
+        keyword_index_path = INDEX_CACHE_DIR / "keyword_index.json"
+        INDEX_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+        # first, check that the rules file exists to build the index from
+        if not rules_text_path.exists():
+            raise RulesCacheMissingError(
+                f'rules file does not exist, expected at "{rules_text_path.name}"'
+            )
+        if rules_text_path.stat().st_size == 0:
+            raise RulesCacheEmptyError(
+                f'rules file exists at "{rules_text_path.name}", but contains no data'
+            )
+
+        # Find the beginning and end of the 'Glossary' section, as this
+        # contains straight definitions of all the words we'd want to look up
+        lines = rules_text_path.read_text().split("\n")
+        glossary_start = max(i for i, line in enumerate(lines) if line == "Glossary")
+        glossary_end = max(i for i, line in enumerate(lines) if line == "Credits")
+        block = lines[glossary_start + 1 : glossary_end]
+
+        # group lines into entries for the index dictionary
+        keyword_index: dict[str, str] = {}
+        current: list[str] = []
+        for line in block:
+            # if the line is blank, this is the end of the current entry,
+            # if we've written lines to current then it's good to go;
+            # the first line is the keyword, so use this as the key then
+            # join the rest into a single sentence to form the value
+            if line.strip() == "":
+                if current:
+                    keyword_index[current[0]] = " ".join(current[1:])
+                    current = []
+                continue
+            # the source text uses U+2028 (line separator) to force a manual
+            # line break within a definition, not to mark a new entry. We
+            # do not need this and it muddies up the index files. Treat
+            # it as a space so it doesn't leak into the stored definition
+            current.append(line.replace(" ", " "))
+
+        # polish off the final entry once we've exited the loop
+        if current:
+            keyword_index[current[0]] = " ".join(current[1:])
+
+        # write to disk
+        with open(keyword_index_path, "w") as file:
+            json.dump(keyword_index, file, indent=2, ensure_ascii=False)
+
+        elapsed = time.perf_counter() - start_time
+        print(f"keyword index built in {elapsed:.1f}s ({len(keyword_index)} keywords)")

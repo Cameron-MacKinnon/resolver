@@ -7,8 +7,9 @@ from pathlib import Path
 
 import requests
 
+from .cache_config import IMAGE_VARIANTS, RAW_CACHE_DIR
 from .scryfall_client import BulkType, ScryfallClient
-from .scryfall_config import IMAGE_VARIANTS, RAW_CACHE_DIR
+from .wotc_client import WotcClient
 
 # How many concurrent image downloads we want to perform. *.scryfall.io has
 # no stated rate limit, but we try not to go overboard
@@ -22,6 +23,7 @@ class CacheType(Enum):
     CARD_DATA = "card_data"
     IMAGES = "images"
     RULINGS = "rulings"
+    GLOSSARY = "glossary"
 
 
 class CacheBuilderError(Exception):
@@ -47,6 +49,9 @@ class CacheBuilder:
         # scryfall client
         self.scryfall_client = ScryfallClient()
 
+        # wizards of the coast client (comprehensive rules / glossary)
+        self.wotc_client = WotcClient()
+
         # shared progress state for build_image_cache's worker threads
         self._progress_lock = threading.Lock()
         self._completed = 0
@@ -70,6 +75,21 @@ class CacheBuilder:
         print(
             f"{cache_type.value} cache built in {elapsed:.1f}s ({len(card_data)} records)"
         )
+
+    def build_glossary_cache(self) -> None:
+        """Fetch the official Comprehensive Rules text and write it to disk as-is"""
+        start_time = time.perf_counter()
+
+        # get the rules text txt file from WoTC server
+        rules_text = self.wotc_client.fetch_comprehensive_rules()
+
+        # dump the txt to disk
+        RAW_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        glossary_path = RAW_CACHE_DIR / "rules.txt"
+        glossary_path.write_text(rules_text)
+
+        elapsed = time.perf_counter() - start_time
+        print(f"glossary cache built in {elapsed:.1f}s")
 
     def build_image_cache(self) -> None:
         """Download and cache desired image variants for every card in the card-data cache.
@@ -173,6 +193,8 @@ class CacheBuilder:
                 )
             case CacheType.IMAGES:
                 self.build_image_cache()
+            case CacheType.GLOSSARY:
+                self.build_glossary_cache()
             case _:
                 raise InvalidCacheTypeError(
                     f'invalid cache type argument "{cache_type}"'
