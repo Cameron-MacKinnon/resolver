@@ -210,15 +210,8 @@ class IndexBuilder:
         elapsed = time.perf_counter() - start_time
         print(f"name index built in {elapsed:.1f}s ({len(name_index)} unique names)")
 
-    def build_card_data_index(self) -> dict[str, dict]:
-        """Load the card data cache into a dict keyed by id, persist it, and return it.
-
-        Unlike the hash/rulings/name indexes, this one isn't derived/reshaped
-        data - it's just a re-keyed view of records already sitting in
-        card_data.jsonl. Still persisted anyway, same as the others, so it's
-        inspectable on disk rather than only ever existing as an in-memory
-        value - storage cost isn't a real constraint for this project.
-        """
+    def build_card_data_index(self) -> None
+        """Load the card data cache into a dict keyed by id and persist as JSON"""
         start_time = time.perf_counter()
 
         card_data_cache_path = RAW_CACHE_DIR / "card_data.jsonl"
@@ -246,4 +239,3 @@ class IndexBuilder:
 
         elapsed = time.perf_counter() - start_time
         print(f"card data index built in {elapsed:.1f}s ({len(card_data_index)} cards)")
-        return card_data_index
