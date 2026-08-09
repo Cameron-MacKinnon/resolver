@@ -1,6 +1,7 @@
 import json
 import statistics
 import time
+from dataclasses import dataclass
 
 import imagehash
 from imagehash import ImageHash
@@ -14,32 +15,28 @@ from .cache_config import INDEX_CACHE_DIR
 RECOGNITION_SIGMA_THRESHOLD = 4
 
 
+@dataclass
+class MatchResult:
+    id: str
+    distance: int
+    score: float
+
+
 class Comparator:
-    def __init__(self) -> None:
-        self.hash_index = self._load_index()
+    def __init__(self, encoded_hash_index: list[dict]) -> None:
+        self.hash_index = self._preprocess_hash_index(encoded_hash_index)
 
-    def _load_index(self) -> list[dict]:
-        """Open the index file and read it into a list of dicts, convert hex
-        hashes back into ImageHash objects."""
-        # start performance timer
-        start_time = time.perf_counter()
-        print("loading image hash index...")
+    def _preprocess_hash_index(self, hash_index: list[dict]) -> list[dict]:
+        """Convert hex encoded hashes back into ImageHash objects.
 
-        # load JSONL cache to dict
-        hash_index_path = INDEX_CACHE_DIR / "hash_index.jsonl"
-        with open(hash_index_path, "r") as file:
-            hash_index: list[dict] = [json.loads(line) for line in file]
-
-        # convert hexadecimal representations of hashes back into ImageHash objs
-        for entry in hash_index:
-            hash_obj = imagehash.hex_to_hash(entry["hash"])
-            entry["hash"] = hash_obj
-
-        # finish timer and print conclusion stats
-        elapsed = time.perf_counter() - start_time
-        print(f"image hash index loaded in {elapsed:.1f}s")
-
-        return hash_index
+        Builds a fresh list of dicts rather than mutating hash_index in place,
+        since it's caller-owned data (injected via the constructor) that may
+        be shared/reused elsewhere.
+        """
+        return [
+            {**entry, "hash": imagehash.hex_to_hash(entry["hash"])}
+            for entry in hash_index
+        ]
 
     def _deduped_distances(self, search_hash: ImageHash) -> dict[str, int]:
         """Compute the hash distance from search_hash to every cached entry,
@@ -60,7 +57,7 @@ class Comparator:
                 distances[id_] = distance
         return distances
 
-    def best_match(self, search_hash: ImageHash) -> dict | None:
+    def find_best_match(self, search_hash: ImageHash) -> MatchResult | None:
         """Find the single best-matching card via statistical outlier scoring,
         or None if no candidate is confidently recognized.
 
@@ -97,4 +94,4 @@ class Comparator:
         if score < 1.0:
             return None
 
-        return {"id": best_id, "distance": best_distance, "score": score}
+        return MatchResult(id=best_id, distance=best_distance, score=score)

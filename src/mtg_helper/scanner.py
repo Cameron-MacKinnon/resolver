@@ -39,7 +39,7 @@ class Scanner:
         for _ in range(5):
             self.camera.grab()
 
-    def scan(self) -> list[MatLike]:
+    def capture_burst(self) -> list[MatLike]:
         """Warm up the camera's autofocus, then capture a short burst of frames.
 
         See docs/image_pipeline_reference.md for implementation details.

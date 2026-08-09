@@ -1,24 +1,17 @@
 import json
 from pathlib import Path
 
-import cv2
-from cv2.typing import MatLike
-
 from .cache_builder import CacheBuilder, CacheType
-from .cache_config import INDEX_CACHE_DIR
-from .card_detector import CardDetector
-from .comparator import Comparator
-from .frame_selector import FrameSelector
-from .hasher import Hasher
 from .index_builder import IndexBuilder, IndexType
-from .scanner import Scanner
+from .openrouter_client import OpenrouterClient
+from .recognition_pipeline import RecognitionPipeline
 
 # local test outputs go here
 output_dir = Path("test_output")
 
 MENU = """
-1) run card identification loop
-2) test a locally saved image
+1) identify card
+2) identify card and ask an LLM about it
 3) run cache generation
 4) run index generation
 q) quit
@@ -44,90 +37,47 @@ def run_index_generation() -> None:
     builder.build_index(IndexType.PHASH)
 
 
-def load_card_data_index() -> dict:
-    """Load the card data index so match ids can be resolved to card names."""
-    card_data_index_path = INDEX_CACHE_DIR / "card_data_index.json"
-    with open(card_data_index_path, "r") as file:
-        return json.load(file)
-
-
-def report_match(
-    card: MatLike, label: str, comparator: Comparator, card_data_index: dict
-) -> None:
-    """Hash a single card image, match it against the index, and print the result."""
-    search_hash = Hasher(card).compute_hash()
-    match = comparator.best_match(search_hash)
-
-    if match is None:
-        print(f"  {label}: no confident match")
+def ask_llm_about_card(recognition_pipeline: RecognitionPipeline) -> None:
+    """Identify a card, then send the resulting payload to an LLM as a smoke test."""
+    payload = recognition_pipeline.run()
+    if payload is None:
+        print("no confident match - nothing to send")
         return
 
-    name = card_data_index[match["id"]]["name"]
-    print(
-        f"  {label}: {name} (id={match['id']}, "
-        f"distance={match['distance']}, score={match['score']:.2f})"
+    model = "anthropic/claude-haiku-4.5"
+    prompt = (
+        "You are given JSON data for a Magic: The Gathering card someone is holding "
+        "in their hand right now - they can already see its name, mana cost, type "
+        "line, and oracle text, so don't repeat those back. Structure your reply "
+        "into plain-text sections using short, ALL-CAPS labels (e.g. SUMMARY, "
+        "KEYWORDS, RULINGS) each followed by a blank line, so it's easy to skim "
+        "straight to the part someone's interested in - no markdown formatting "
+        "(no #, **, or - bullets), since this is displayed in a raw terminal.\n\n"
+        "SUMMARY: In 1-2 sentences, explain in plain English what the card "
+        "actually does and how it plays, especially anything non-obvious.\n"
+        "KEYWORDS: If the card has keyword abilities, briefly explain each one "
+        "in plain English. Omit this section if there are none.\n"
+        "RULINGS: If any rulings reveal a genuinely non-obvious interaction or "
+        "common misplay, briefly mention it. Omit this section if nothing "
+        "stands out.\n\n"
+        f"{json.dumps(payload, ensure_ascii=False)}"
     )
 
-
-def run_identification_loop(comparator: Comparator, card_data_index: dict) -> None:
-    """Repeatedly capture from the camera and match detected cards, until 'q'."""
-    scanner = Scanner(camera_input=0)
-
-    print("ready - press enter to scan, or 'q' to return to the menu")
-    while True:
-        command = input("> ").strip().lower()
-        if command == "q":
-            return
-
-        # capture a burst and select the sharpest frame
-        image_burst = scanner.scan()
-        frame_selector = FrameSelector(image_burst)
-        sharpest_image = frame_selector.select_sharpest_image()
-        cv2.imwrite(str(output_dir / "sharpest_image.jpg"), sharpest_image)
-
-        # search for card objects in the image
-        detected_cards = CardDetector(sharpest_image).detect_cards()
-        print(f"detected {len(detected_cards)} card-like candidate(s)")
-
-        for index, card in enumerate(detected_cards):
-            cv2.imwrite(str(output_dir / f"detected_card_{index}.jpg"), card)
-            report_match(card, f"card {index}", comparator, card_data_index)
-
-
-def run_saved_image_test(comparator: Comparator, card_data_index: dict) -> None:
-    """Match a single already-cropped card image from disk, no camera required."""
-    path = Path(input("image path: ").strip())
-    if not path.exists():
-        print(f"no file found at '{path}'")
-        return
-
-    image = cv2.imread(str(path))
-    if image is None:
-        print(f"could not read image at '{path}'")
-        return
-
-    report_match(image, str(path), comparator, card_data_index)
+    llm_client = OpenrouterClient()
+    print(llm_client.send_prompt(prompt, model))
 
 
 def main() -> None:
-    output_dir.mkdir(exist_ok=True)
-
-    # comparator/card_data_index are only needed for options 1/2, and
-    # loading them requires the indexes to already exist - so load them
-    # lazily on first use rather than eagerly, and reuse them after that
-    comparator = Comparator()
-    card_data_index = load_card_data_index()
+    # init recognition pipeline
+    recognition_pipeline = RecognitionPipeline()
 
     while True:
         print(MENU)
         choice = input("> ").strip().lower()
-
-        if choice in ("1", "2"):
-            card_data_index = load_card_data_index()
         if choice == "1":
-            run_identification_loop(comparator, card_data_index)
+            print(json.dumps(recognition_pipeline.run(), indent=2, ensure_ascii=False))
         elif choice == "2":
-            run_saved_image_test(comparator, card_data_index)
+            ask_llm_about_card(recognition_pipeline)
         elif choice == "3":
             run_cache_generation()
         elif choice == "4":

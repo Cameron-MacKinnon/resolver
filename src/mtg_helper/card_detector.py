@@ -99,7 +99,7 @@ class CardDetector:
             # at this point we can assume it's a rectangle, get its bounding box
             # (accounting for rotation)
             rect = cv2.minAreaRect(hull)
-            (x, y), (width, height), angle = rect
+            (_, _), (width, height), _ = rect
 
             # prevent accidental ZeroDivisionErrors in the following block
             if width == 0 or height == 0:
