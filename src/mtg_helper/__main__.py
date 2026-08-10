@@ -33,6 +33,7 @@ def run_index_generation() -> None:
     builder = IndexBuilder()
     builder.build_index(IndexType.CARD_DATA)
     builder.build_index(IndexType.NAME)
+    builder.build_index(IndexType.ORACLE_ID)
     builder.build_index(IndexType.RULINGS)
     builder.build_index(IndexType.KEYWORD)
     builder.build_index(IndexType.PHASH)

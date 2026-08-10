@@ -16,6 +16,7 @@ class IndexType(Enum):
     NAME = "name"
     CARD_DATA = "card_data"
     KEYWORD = "keyword"
+    ORACLE_ID = "oracle_id"
 
 
 @dataclass
@@ -94,6 +95,31 @@ class IndexBuilder:
         if "card_faces" in record:
             return [face["name"] for face in record["card_faces"]]
         return [record["name"]]
+
+    def _get_oracle_id(self, record: dict) -> str | None:
+        """Return the record's oracle_id, or None if it has none.
+
+        Most cards have a usable top-level oracle_id. Reversible_card layout
+        records have no top-level oracle_id at all and each entry in
+        card_faces carries its own instead, so we fall back to the first
+        face's oracle_id for simplicity's sake.
+        """
+        if "card_faces" in record:
+            return record["card_faces"][0].get("oracle_id")
+        return record.get("oracle_id")
+
+    def _has_oracle_text(self, record: dict) -> bool:
+        """Return whether the record has any usable oracle text.
+
+        Most cards have usable top-level oracle_text. Multi-faced cards
+        (double-faced/transform/adventure/split/etc) have none at the top
+        level, insetad, each face carries its own. Some non-gameplay objects
+        that still share a name with a real card (e.g. art series cards)
+        have no real oracle text anywhere.
+        """
+        if "card_faces" in record:
+            return any(face.get("oracle_text") for face in record["card_faces"])
+        return bool(record.get("oracle_text"))
 
     def build_phash_index(self) -> None:
         """Compute a phash (perceptual hash) for every cached image and persist
@@ -195,7 +221,16 @@ class IndexBuilder:
         )
 
     def build_name_index(self) -> None:
-        """Group cached card ids by name and persist as a single JSON file."""
+        """Map each card name to its oracle_id and persist as a single JSON file.
+
+        WoTC enforces name uniqueness for real gameplay cards, so a name
+        maps to exactly one oracle_id in practice, and every reprint of a
+        card shares the same oracle_i. The one exception is non-gameplay
+        objects that share a name with a real card (e.g. art series cards,
+        which have their own distinct oracle_id and no real oracle text);
+        when that happens we keep whichever record actually has usable oracle
+        text, since a name lookup should always resolve to the real playable card.
+        """
         start_time = time.perf_counter()
 
         # files / dirs used
@@ -213,16 +248,25 @@ class IndexBuilder:
                 f'card data cache file exists at "{card_data_cache_path.name}", but contains no data'
             )
 
-        # loop over jsonl card data cache and group ids by name
-        name_index: dict[str, list[str]] = {}
+        # loop over jsonl card data cache, keeping one oracle_id per name;
+        # prefer whichever record has usable oracle text if there's a clash
+        name_index: dict[str, str] = {}
+        name_index_records: dict[str, dict] = {}
         with open(card_data_cache_path, "r") as cache_file:
             for line in cache_file:
                 data = json.loads(line)
-                card_id = data["id"]
+                oracle_id = self._get_oracle_id(data)
+                if oracle_id is None:
+                    continue
+
                 for name in self._get_face_card_names(data):
-                    ids = name_index.setdefault(name, [])
-                    if card_id not in ids:
-                        ids.append(card_id)
+                    existing = name_index_records.get(name)
+                    if existing is None or (
+                        not self._has_oracle_text(existing)
+                        and self._has_oracle_text(data)
+                    ):
+                        name_index_records[name] = data
+                        name_index[name] = oracle_id
 
         # write the built index to disk
         with open(name_index_path, "w") as file:
@@ -317,8 +361,57 @@ class IndexBuilder:
         elapsed = time.perf_counter() - start_time
         print(f"keyword index built in {elapsed:.1f}s ({len(keyword_index)} keywords)")
 
+    def build_oracle_id_index(self) -> None:
+        """Map each oracle_id to a single representative id and persist as a JSON file.
+
+        card_data_index stays keyed by id so every printing's data is kept;
+        this is the bridge that lets a lookup starting from an oracle_id
+        (e.g. via name_index) resolve to one usable id."""
+        start_time = time.perf_counter()
+
+        card_data_cache_path = RAW_CACHE_DIR / "card_data.jsonl"
+        oracle_id_index_path = INDEX_CACHE_DIR / "oracle_id_index.json"
+        INDEX_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+        # first, check that a card data cache exists to build the index from
+        if not card_data_cache_path.exists():
+            raise CardDataCacheMissingError(
+                f'card data cache does not exist, expected at "{card_data_cache_path.name}"'
+            )
+        if card_data_cache_path.stat().st_size == 0:
+            raise CardDataCacheEmptyError(
+                f'card data cache file exists at "{card_data_cache_path.name}", but contains no data'
+            )
+
+        # iterate over the card data and filter down to a single representative id
+        # for each oracle_id (chosen id must have valid oracle text otherwise it's useless)
+        oracle_id_index: dict[str, str] = {}
+        oracle_id_records: dict[str, dict] = {}
+        with open(card_data_cache_path, "r") as cache_file:
+            for line in cache_file:
+                data = json.loads(line)
+                oracle_id = self._get_oracle_id(data)
+                if oracle_id is None:
+                    continue
+
+                existing = oracle_id_records.get(oracle_id)
+                if existing is None or (
+                    not self._has_oracle_text(existing) and self._has_oracle_text(data)
+                ):
+                    oracle_id_records[oracle_id] = data
+                    oracle_id_index[oracle_id] = data["id"]
+
+        # write the built index to disk
+        with open(oracle_id_index_path, "w") as file:
+            json.dump(oracle_id_index, file, indent=2, ensure_ascii=False)
+
+        elapsed = time.perf_counter() - start_time
+        print(
+            f"oracle_id index built in {elapsed:.1f}s ({len(oracle_id_index)} oracle_ids)"
+        )
+
     def build_index(self, index_type: IndexType) -> None:
-        """Build the requested index (phash, rulings, name, card data, or keyword) by type."""
+        """Build the requested index (phash, rulings, name, card data, keyword, or oracle_id) by type."""
         match index_type:
             case IndexType.PHASH:
                 self.build_phash_index()
@@ -330,6 +423,8 @@ class IndexBuilder:
                 self.build_card_data_index()
             case IndexType.KEYWORD:
                 self.build_keyword_index()
+            case IndexType.ORACLE_ID:
+                self.build_oracle_id_index()
             case _:
                 raise InvalidIndexTypeError(
                     f'invalid index type argument "{index_type}"'
