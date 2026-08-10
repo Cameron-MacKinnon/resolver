@@ -3,6 +3,7 @@ from pathlib import Path
 
 from .cache_builder import CacheBuilder, CacheType
 from .index_builder import IndexBuilder, IndexType
+from .index_store import IndexStore
 from .openrouter_client import OpenrouterClient
 from .recognition_pipeline import RecognitionPipeline
 
@@ -68,8 +69,11 @@ def ask_llm_about_card(recognition_pipeline: RecognitionPipeline) -> None:
 
 
 def main() -> None:
+    # load every index once, then share it across whatever needs it
+    index_store = IndexStore()
+
     # init recognition pipeline
-    recognition_pipeline = RecognitionPipeline()
+    recognition_pipeline = RecognitionPipeline(index_store)
 
     while True:
         print(MENU)

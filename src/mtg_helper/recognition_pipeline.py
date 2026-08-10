@@ -1,146 +1,37 @@
-import json
 from pathlib import Path
 
 import cv2
 from cv2.typing import MatLike
 
-from .cache_config import INDEX_CACHE_DIR, PROJECT_ROOT
+from .cache_config import PROJECT_ROOT
 from .card_detector import CardDetector
 from .comparator import Comparator, MatchResult
 from .frame_selector import FrameSelector
 from .hasher import Hasher
+from .index_store import IndexStore
 from .scanner import Scanner
 
 
-class IndexLoadError(Exception):
-    """Base index loading error exception"""
-
-    def __init__(self, message):
-        suffix = ", maybe you forgot to run the cache/index generation pipeline?"
-        modified_message = f"{message}{suffix}"
-        super().__init__(modified_message)
-
-
-class MissingCardDataIndexError(IndexLoadError):
-    """Raised when the card data index file is missing."""
-
-
-class EmptyCardDataIndexError(IndexLoadError):
-    """Raised when the card data index file exists but is empty."""
-
-
-class MissingNameIndexError(IndexLoadError):
-    """Raised when the card name index file is missing."""
-
-
-class EmptyNameIndexError(IndexLoadError):
-    """Raised when the card name index file exists but is empty."""
-
-
-class MissingRulingsIndexError(IndexLoadError):
-    """Raised when the rulings index file is missing."""
-
-
-class EmptyRulingsIndexError(IndexLoadError):
-    """Raised when the rulings index file exists but is empty."""
-
-
-class MissingKeywordIndexError(IndexLoadError):
-    """Raised when the keyword index file is missing."""
-
-
-class EmptyKeywordIndexError(IndexLoadError):
-    """Raised when the keyword index file exists but is empty."""
-
-
-class MissingHashIndexError(IndexLoadError):
-    """Raised when the image hash index file is missing."""
-
-
-class EmptyHashIndexError(IndexLoadError):
-    """Raised when the image hash index file exists but is empty."""
-
-
 class RecognitionPipeline:
-    def __init__(self) -> None:
-        # declare indexes then load them
-        self.card_data_index: dict[str, dict] | None = None
-        self.name_index: dict[str, list[str]] | None = None
-        self.rulings_index: dict[str, list[dict]] | None = None
-        self.keyword_index: dict[str, str] | None = None
-        self.hash_index: list[dict] | None = None
-        self._load_indexes()
+    def __init__(self, index_store: IndexStore) -> None:
+        self.index_store = index_store
 
         # init scanner
         self.scanner: Scanner = Scanner(camera_input=0)
 
         # init comparator (performs hash index preprocessing to cast
         # hex hashes back to ImageHash), we only want to do this once
-        assert self.hash_index is not None
-        self.comparator: Comparator = Comparator(self.hash_index)
+        self.comparator: Comparator = Comparator(index_store.hash_index)
 
         # create test output folder if not exists (only used for local auditing)
         Path(PROJECT_ROOT / "test_output").mkdir(exist_ok=True)
 
-    def _check_file(
-        self,
-        path: Path,
-        missing_exc: type[IndexLoadError],
-        empty_exc: type[IndexLoadError],
-    ) -> None:
-        """Make sure a given index file exists and isn't empty"""
-        if not path.is_file():
-            raise missing_exc(f'missing index file, expected at "{path.name}"')
-        if path.stat().st_size == 0:
-            raise empty_exc(f'empty index file at "{path.name}"')
-
-    def _load_indexes(self) -> None:
-        """Load the indexes files used by the image recognition pipeline to memory,
-        these will be injected as dependencies to callers in this class where required."""
-        # index filepaths
-        card_data_index_path = INDEX_CACHE_DIR / "card_data_index.json"
-        name_index_path = INDEX_CACHE_DIR / "name_index.json"
-        rulings_index_path = INDEX_CACHE_DIR / "rulings_index.json"
-        keyword_index_path = INDEX_CACHE_DIR / "keyword_index.json"
-        hash_index_path = INDEX_CACHE_DIR / "hash_index.jsonl"
-
-        # check / load card data index
-        self._check_file(
-            card_data_index_path, MissingCardDataIndexError, EmptyCardDataIndexError
-        )
-        with open(card_data_index_path, "r") as file:
-            self.card_data_index = json.load(file)
-
-        # check / load name index
-        self._check_file(name_index_path, MissingNameIndexError, EmptyNameIndexError)
-        with open(name_index_path, "r") as file:
-            self.name_index = json.load(file)
-
-        # load rulings index
-        self._check_file(
-            rulings_index_path, MissingRulingsIndexError, EmptyRulingsIndexError
-        )
-        with open(rulings_index_path, "r") as file:
-            self.rulings_index = json.load(file)
-
-        # load keyword index
-        self._check_file(
-            keyword_index_path, MissingKeywordIndexError, EmptyKeywordIndexError
-        )
-        with open(keyword_index_path, "r") as file:
-            self.keyword_index = json.load(file)
-
-        # load image hash index
-        self._check_file(hash_index_path, MissingHashIndexError, EmptyHashIndexError)
-        with open(hash_index_path, "r") as file:
-            self.hash_index = [json.loads(line) for line in file]
-
     def _hash_and_search(self, card: MatLike) -> MatchResult | None:
+        """Generate a phash for the given card and return the match"""
         # generate phash for this card
         hash = Hasher(card).compute_hash()
 
-        # perform a comparison against the image hash, reusing the comparator
-        # built once in __init__ rather than constructing a new one per card
+        # perform a comparison against the image hash
         result = self.comparator.find_best_match(hash)
 
         return result
@@ -162,24 +53,19 @@ class RecognitionPipeline:
     ) -> dict[str, dict | list | int]:
         """Uses the image recognition result to lookup the card details from the indexes
         and form a single return payload"""
-        # reassure mypy that the indexes are not None
-        assert self.card_data_index is not None
-        assert self.rulings_index is not None
-        assert self.keyword_index is not None
-
         # get card details and unpack keys to use here
-        card_data = self.card_data_index[match.id]
+        card_data = self.index_store.card_data_index[match.id]
         oracle_id = card_data["oracle_id"]
         keywords = card_data["keywords"]
 
         # get rulings data (if any)
-        rulings = self.rulings_index.get(oracle_id, [])
+        rulings = self.index_store.rulings_index.get(oracle_id, [])
 
         # get keyword definitions (if any), skipping any keyword
         # names that don't have an exact match in the glossary
         keyword_definitions: dict[str, str] = {}
         for keyword in keywords:
-            definition = self.keyword_index.get(keyword)
+            definition = self.index_store.keyword_index.get(keyword)
             if definition is not None:
                 keyword_definitions[keyword] = definition
 
