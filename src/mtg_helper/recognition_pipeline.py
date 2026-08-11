@@ -36,18 +36,6 @@ class RecognitionPipeline:
 
         return result
 
-    def _get_oracle_text(self, card_data: dict) -> str:
-        """Return the card's oracle text.
-
-        Most cards have a usable top-level oracle_text. Multi-faced cards
-        (double-faced/transform/adventure/split/etc) have no top-level
-        oracle_text at all,  each entry in card_faces carries its own
-        instead, so those get joined together.
-        """
-        if "card_faces" in card_data:
-            return "\n\n".join(face["oracle_text"] for face in card_data["card_faces"])
-        return card_data["oracle_text"]
-
     def _get_linked_card_details(
         self, match: MatchResult
     ) -> dict[str, dict | list | int]:
@@ -74,9 +62,9 @@ class RecognitionPipeline:
             "card_details": {
                 "name": card_data["name"],
                 "color_identity": card_data["color_identity"],
-                "mana_cost": card_data.get("mana_cost"),
+                "mana_cost": card_data["mana_cost"],
                 "type_line": card_data["type_line"],
-                "oracle_text": self._get_oracle_text(card_data),
+                "oracle_text": card_data["oracle_text"],
             },
             "keyword_definitions": keyword_definitions,
             "rulings": rulings,

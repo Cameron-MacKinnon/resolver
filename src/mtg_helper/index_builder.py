@@ -35,6 +35,18 @@ class HashEntry:
     hash: str
 
 
+@dataclass
+class CardRecord:
+    id: str
+    oracle_id: str
+    name: str
+    oracle_text: str
+    type_line: str
+    mana_cost: str
+    color_identity: list[str]
+    keywords: list[str]
+
+
 class IndexBuilderError(Exception):
     """base index builder exception"""
 
@@ -83,14 +95,13 @@ class IndexBuilder:
                 return id_, int(face_index), variant
         raise ValueError(f"unrecognised image filename: {image_path.name}")
 
-    def _get_face_card_names(self, record: dict) -> list[str]:
+    def _get_names(self, record: dict) -> list[str]:
         """Return one card name per face of the card.
 
         Most cards have a single, useable top-level name. Multi-faced cards
-        (double-faced/transform/art-series/adventure/split/etc) have a
-        top-level name too, but it's a combined "Face A // Face B" string,
-        which is not ideal for fuzzy-matching against directly. Each entry
-        in card_faces carries its own individual name instead.
+        have a top-level name too, but it's a combined "Face A // Face B"
+        string, not ideal for fuzzy-matching against directly - each face's
+        own name is returned separately instead.
         """
         if "card_faces" in record:
             return [face["name"] for face in record["card_faces"]]
@@ -99,27 +110,65 @@ class IndexBuilder:
     def _get_oracle_id(self, record: dict) -> str | None:
         """Return the record's oracle_id, or None if it has none.
 
-        Most cards have a usable top-level oracle_id. Reversible_card layout
-        records have no top-level oracle_id at all and each entry in
-        card_faces carries its own instead, so we fall back to the first
-        face's oracle_id for simplicity's sake.
+        Unlike name/oracle_text, most multi-faced layouts keep a valid
+        oracle_id at the top level (it identifies the whole card, not a
+        face) - only reversible_card doesn't, so we only fall back to the
+        first face's oracle_id when the top-level one is genuinely missing.
         """
+        oracle_id = record.get("oracle_id")
+        if oracle_id is not None:
+            return oracle_id
         if "card_faces" in record:
             return record["card_faces"][0].get("oracle_id")
-        return record.get("oracle_id")
+        return None
 
-    def _has_oracle_text(self, record: dict) -> bool:
-        """Return whether the record has any usable oracle text.
+    def _get_oracle_text(self, record: dict) -> str:
+        """Return the record's oracle text, or an empty string if it has none.
 
-        Most cards have usable top-level oracle_text. Multi-faced cards
-        (double-faced/transform/adventure/split/etc) have none at the top
-        level, insetad, each face carries its own. Some non-gameplay objects
-        that still share a name with a real card (e.g. art series cards)
-        have no real oracle text anywhere.
+        Joins all faces with a blank-line separator to keep each face's text
+        visually distinct. Some non-gameplay objects sharing a name with a real
+        card (e.g. art series cards) have no real text anywhere, the empty-string
+        result can be used to filter those out.
         """
         if "card_faces" in record:
-            return any(face.get("oracle_text") for face in record["card_faces"])
-        return bool(record.get("oracle_text"))
+            return "\n\n".join(
+                face.get("oracle_text") or "" for face in record["card_faces"]
+            )
+        return record.get("oracle_text") or ""
+
+    def _get_type_line(self, record: dict) -> str:
+        """Return the record's type line, or an empty string if it has none.
+
+        Reversible_card is the only layout missing a top-level type_line,
+        each face carries its own instead. Most reversible_card printings are
+        the same card on both sides (just a different border/treatment), so
+        identical faces are collapsed down to one value; a handful (Omen
+        cards) genuinely have two different faces, and those get joined with
+        " // " to represent both.
+        """
+        type_line = record.get("type_line")
+        if type_line is not None:
+            return type_line
+        if "card_faces" not in record:
+            return ""
+        face_type_lines = [face.get("type_line") or "" for face in record["card_faces"]]
+        unique_type_lines = dict.fromkeys(face_type_lines)
+        return " // ".join(unique_type_lines)
+
+    def _get_mana_cost(self, record: dict) -> str:
+        """Return the record's mana cost, or an empty string if it has none.
+
+        Several layouts (transform/modal_dfc/reversible_card/double_faced_token/
+        art_series) have no top-level mana_cost, each face carries its own
+        instead. The castable cost, when a card has one, is always on the
+        first face - other faces (a transform's back, a token, art) are empty.
+        """
+        mana_cost = record.get("mana_cost")
+        if mana_cost is not None:
+            return mana_cost
+        if "card_faces" not in record:
+            return ""
+        return record["card_faces"][0].get("mana_cost") or ""
 
     def build_phash_index(self) -> None:
         """Compute a phash (perceptual hash) for every cached image and persist
@@ -259,11 +308,11 @@ class IndexBuilder:
                 if oracle_id is None:
                     continue
 
-                for name in self._get_face_card_names(data):
+                for name in self._get_names(data):
                     existing = name_index_records.get(name)
                     if existing is None or (
-                        not self._has_oracle_text(existing)
-                        and self._has_oracle_text(data)
+                        not self._get_oracle_text(existing)
+                        and self._get_oracle_text(data)
                     ):
                         name_index_records[name] = data
                         name_index[name] = oracle_id
@@ -276,7 +325,14 @@ class IndexBuilder:
         print(f"name index built in {elapsed:.1f}s ({len(name_index)} unique names)")
 
     def build_card_data_index(self) -> None:
-        """Load the card data cache into a dict keyed by id and persist as JSON"""
+        """Load the card data cache into a dict keyed by id and persist as JSON.
+
+        Each record is normalized into a CardRecord rather than stored
+        verbatim - multi-faced cards are inconsistent about which fields
+        live at the top level versus nested per face, and it varies field
+        by field, so every printing gets resolved once here rather than
+        leaving every downstream reader to handle it defensively.
+        """
         start_time = time.perf_counter()
 
         card_data_cache_path = RAW_CACHE_DIR / "card_data.jsonl"
@@ -297,7 +353,23 @@ class IndexBuilder:
         with open(card_data_cache_path, "r") as cache_file:
             for line in cache_file:
                 record = json.loads(line)
-                card_data_index[record["id"]] = record
+
+                oracle_id = self._get_oracle_id(record)
+                assert oracle_id is not None, (
+                    f"card {record['id']!r} has no resolvable oracle_id"
+                )
+
+                card_record = CardRecord(
+                    id=record["id"],
+                    oracle_id=oracle_id,
+                    name=record["name"],
+                    oracle_text=self._get_oracle_text(record),
+                    type_line=self._get_type_line(record),
+                    mana_cost=self._get_mana_cost(record),
+                    color_identity=record["color_identity"],
+                    keywords=record["keywords"],
+                )
+                card_data_index[card_record.id] = asdict(card_record)
 
         with open(card_data_index_path, "w") as file:
             json.dump(card_data_index, file, indent=2, ensure_ascii=False)
@@ -396,7 +468,7 @@ class IndexBuilder:
 
                 existing = oracle_id_records.get(oracle_id)
                 if existing is None or (
-                    not self._has_oracle_text(existing) and self._has_oracle_text(data)
+                    not self._get_oracle_text(existing) and self._get_oracle_text(data)
                 ):
                     oracle_id_records[oracle_id] = data
                     oracle_id_index[oracle_id] = data["id"]
