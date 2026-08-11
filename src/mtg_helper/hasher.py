@@ -4,9 +4,8 @@ from cv2.typing import MatLike
 from PIL import Image
 
 # imagehash.phash's default hash_size=8 (64 bits) doesn't have enough entropy
-# to keep tens of thousands of cards well-separated - verified empirically
-# against the real card corpus, where several unrelated cards tied for the
-# closest match at hash_size=8, but uniquely separated at hash_size=16
+# to keep tens of thousands of cards well-separated. It would seem that they
+# become adequately separated at hash_size=16, so there you go.
 PHASH_SIZE = 16
 
 
