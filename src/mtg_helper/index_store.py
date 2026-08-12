@@ -61,8 +61,8 @@ class EmptyOracleIdIndexError(IndexLoadError):
 
 
 class IndexStore:
-    """Loads and holds every runtime-queryable index in memory once so
-    they can be accessed by multiple consumers via Dependency Injection"""
+    """Loads every runtime-queryable MTG information index into memory for centralised
+    access by all callers."""
 
     def __init__(self) -> None:
         self.card_data_index: dict[str, dict] = self._load_json_index(
