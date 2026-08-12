@@ -1,9 +1,25 @@
+from rapidfuzz import fuzz, process, utils
+
 from .index_store import IndexStore
 
 
 class IndexLookup:
     def __init__(self, index_store: IndexStore) -> None:
         self.index_store = index_store
+
+    def _fuzzy_match_card_name(self, card_name: str) -> str | None:
+        """Given a string, returns the closest matching name from the index."""
+        result = process.extractOne(
+            card_name,
+            self.index_store.name_index.keys(),
+            scorer=fuzz.WRatio,
+            processor=utils.default_process,  # lowercase + strip punctuation
+            score_cutoff=90,
+        )
+        if result is None:
+            return None
+        matched_name, _score, _index = result
+        return self.index_store.name_index[matched_name]
 
     def get_card_data_by_id(self, scryfall_id: str) -> dict | None:
         """Retrieve a specific card's data from its globally unique scryfall id"""
@@ -27,21 +43,14 @@ class IndexLookup:
         return card_data
 
     def get_card_data_by_name(self, card_name: str) -> dict | None:
-        """Retrieve a card's data using its name"""
+        """Retrieve a card's data using its name, fallback to fuzzy match once
+        if exact match is non-existent"""
         oracle_id = self.index_store.name_index.get(card_name)
         if oracle_id is None:
+            oracle_id = self._fuzzy_match_card_name(card_name)
+        if oracle_id is None:
             return None
-
-        # same reasoning as above, name_index and oracle_id_index are
-        # built from the same source at the same time, so this oracle_id is
-        # guaranteed to exist in oracle_id_index. None here suggests the
-        # indexes are somehow out of sync
-        card_data = self.get_card_data_by_oracle_id(oracle_id)
-        assert card_data is not None, (
-            f"name_index points to unknown oracle_id {oracle_id!r} "
-            f"for name {card_name!r} - indexes are out of sync"
-        )
-        return card_data
+        return self.get_card_data_by_oracle_id(oracle_id)
 
     def get_keyword_definition(self, keyword: str) -> str | None:
         """For a given keyword, return the definition as per the official rules"""
