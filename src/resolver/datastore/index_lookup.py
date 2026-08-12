@@ -6,7 +6,7 @@ class IndexLookup:
         self.index_store = index_store
 
     def get_card_data_by_id(self, scryfall_id: str) -> dict | None:
-        """Retrieve a specific card's data from its globally unique ID"""
+        """Retrieve a specific card's data from its globally unique scryfall id"""
         return self.index_store.card_data_index.get(scryfall_id)
 
     def get_card_data_by_oracle_id(self, oracle_id: str) -> dict | None:
@@ -47,8 +47,8 @@ class IndexLookup:
         """For a given keyword, return the definition as per the official rules"""
         return self.index_store.keyword_index.get(keyword)
 
-    def get_rulings(self, oracle_id: str) -> list[dict]:
-        """For a given oracle_id, return all associated official rulings"""
+    def get_card_rulings(self, oracle_id: str) -> list[dict]:
+        """For a given oracle_id, return all associated official rulings assosciated with this card"""
         return self.index_store.rulings_index.get(oracle_id, [])
 
     def get_card_context(self, scryfall_id: str) -> dict[str, dict | list] | None:
@@ -81,7 +81,7 @@ class IndexLookup:
                 "oracle_text": card_data["oracle_text"],
             },
             "keyword_definitions": keyword_definitions,
-            "rulings": self.get_rulings(card_data["oracle_id"]),
+            "rulings": self.get_card_rulings(card_data["oracle_id"]),
             "ids": {
                 "id": card_data["id"],
                 "oracle_id": card_data["oracle_id"],

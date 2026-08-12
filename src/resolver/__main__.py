@@ -1,11 +1,17 @@
 import json
 from pathlib import Path
 
-from .chat.agent import OpenRouterAgent
+from .chat.agent_tools import AgentTools
+from .chat.chat_session import ChatSession
+from .chat.conversation import Conversation
+from .chat.terminal_chat_view import TerminalChatView
 from .datastore.cache_builder import CacheBuilder, CacheType
 from .datastore.index_builder import IndexBuilder, IndexType
+from .datastore.index_lookup import IndexLookup
 from .datastore.index_store import IndexStore
 from .recognition.recognition_pipeline import RecognitionPipeline
+
+MODEL = "anthropic/claude-haiku-4.5"
 
 # local test outputs go here
 output_dir = Path("test_output")
@@ -40,7 +46,7 @@ def run_index_generation() -> None:
 
 
 def ask_llm_about_card(
-    index_store: IndexStore, recognition_pipeline: RecognitionPipeline
+    index_lookup: IndexLookup, recognition_pipeline: RecognitionPipeline
 ) -> None:
     """Identify a card, then send the resulting payload to an LLM as a smoke test."""
     payload = recognition_pipeline.run()
@@ -48,13 +54,19 @@ def ask_llm_about_card(
         print("no confident match - nothing to send")
         return
 
-    agent = OpenRouterAgent(index_store=index_store)
-    agent.launch_chat_session(payload)
+    session = ChatSession(
+        conversation=Conversation(),
+        view=TerminalChatView(),
+        tools=AgentTools(index_lookup),
+        model=MODEL,
+    )
+    session.launch_chat_session(payload)
 
 
 def main() -> None:
     # load every index once, then share it across whatever needs it
     index_store = IndexStore()
+    index_lookup = IndexLookup(index_store)
 
     # init recognition pipeline
     recognition_pipeline = RecognitionPipeline(index_store)
@@ -65,7 +77,7 @@ def main() -> None:
         if choice == "1":
             print(json.dumps(recognition_pipeline.run(), indent=2, ensure_ascii=False))
         elif choice == "2":
-            ask_llm_about_card(index_store, recognition_pipeline)
+            ask_llm_about_card(index_lookup, recognition_pipeline)
         elif choice == "3":
             run_cache_generation()
         elif choice == "4":
