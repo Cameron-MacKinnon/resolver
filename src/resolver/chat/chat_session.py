@@ -1,5 +1,6 @@
 import json
 import os
+from typing import cast
 
 from dotenv import load_dotenv
 from openrouter import OpenRouter
@@ -107,6 +108,9 @@ class ChatSession:
                 # card payload from the recognition pipeline and let the
                 # model open with a summary
                 if self.conversation.first_message:
+                    card_details = cast(dict, payload["card_details"])
+                    card_name = cast(str, card_details["name"])
+                    self.view.show_recognized_card(card_name)
                     self.conversation.add_to_memory(
                         role="user", content=json.dumps(payload)
                     )

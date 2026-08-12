@@ -26,7 +26,14 @@ class AgentTools:
         self._tools: dict[str, _ToolEntry] = {
             "get_card_data_by_name": {
                 "callable": index_lookup.get_card_data_by_name,
-                "description": "Look up a card's details by its exact name",
+                "description": (
+                    "Look up a card's basic details (name, mana cost, type, "
+                    "oracle text, id) by its exact name. This alone is not "
+                    "enough to properly explain a card the user is asking "
+                    "about for the first time - follow up with "
+                    "get_card_context using the returned id to also get its "
+                    "rulings and keyword definitions before answering."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {"card_name": {"type": "string"}},
@@ -35,11 +42,47 @@ class AgentTools:
             },
             "get_card_context": {
                 "callable": index_lookup.get_card_context,
-                "description": "Get full context for a card - details, rulings, and keyword definitions - by its scryfall id",
+                "description": (
+                    "Get full context for a card - details, rulings, and "
+                    "keyword definitions - by its scryfall id. Use this "
+                    "whenever you're actually explaining a card to the user, "
+                    "not just its basic data. Requires the card's scryfall "
+                    "id (the 'id' field) - call get_card_data_by_name first "
+                    "if you don't already have it."
+                ),
                 "parameters": {
                     "type": "object",
                     "properties": {"scryfall_id": {"type": "string"}},
                     "required": ["scryfall_id"],
+                },
+            },
+            "get_keyword_definition": {
+                "callable": index_lookup.get_keyword_definition,
+                "description": (
+                    "Get the official rules definition of a keyword ability "
+                    "(e.g. Flying, Trample, Vigilance). Always call this "
+                    "when the user asks what a keyword means or how it "
+                    "works, even a common one you already know - don't "
+                    "answer from memory, since exact wording and edge cases "
+                    "matter and this returns the authoritative text."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {"keyword": {"type": "string"}},
+                    "required": ["keyword"],
+                },
+            },
+            "get_card_rulings": {
+                "callable": index_lookup.get_card_rulings,
+                "description": (
+                    "Get official rulings for a card. Requires the card's "
+                    "oracle_id - call get_card_data_by_name first if you "
+                    "don't already have it."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {"oracle_id": {"type": "string"}},
+                    "required": ["oracle_id"],
                 },
             },
         }

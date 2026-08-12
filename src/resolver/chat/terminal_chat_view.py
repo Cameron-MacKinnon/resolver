@@ -1,8 +1,8 @@
 from rich.console import Console
+from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.rule import Rule
 from rich.status import Status
-from rich.text import Text
 
 
 class TerminalChatView:
@@ -20,30 +20,21 @@ class TerminalChatView:
         """Render a simple horizontal rule."""
         self.console.print(Rule(style="dim"))
 
+    def show_recognized_card(self, name: str) -> None:
+        """Displays the recognised card's name so the user gets
+        instant confirmation that recognition worked."""
+        self.console.print()
+        self.console.print(f"[bold green]Recognised:[/] [bold]{name}[/]")
+
     def thinking(self) -> Status:
         """Return a rich context manager to continually render a loading spinner."""
         return self.console.status("[dim magenta]Working...[/]")
 
     def show_reply(self, text: str) -> None:
         """Displays an LLM response message in it's own dedicated panel."""
-        # parse the input text
-        body = Text()
-        for line in text.splitlines():
-            # is this a heading (short, all caps), or a normal line?
-            stripped = line.strip()
-            if stripped and stripped.isupper() and len(stripped) <= 30:
-                body.append(stripped, style="bold cyan")
-            else:
-                body.append(line)
-
-            # add separation space between lines
-            body.append("\n")
-
-        # display the reply text in a paneled box with to differentiate
-        # it from user's input text
         self.console.print(
             Panel(
-                body,
+                Markdown(text),
                 title="[bold magenta]RESOLVER BOT[/]",
                 title_align="center",
                 border_style="magenta",
