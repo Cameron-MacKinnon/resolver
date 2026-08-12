@@ -14,8 +14,8 @@ from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
 
-from .cache_config import PROJECT_ROOT
-from .index_store import IndexStore
+from ..datastore.index_store import IndexStore
+from ..paths import PROJECT_ROOT
 
 Role = Literal["system", "user", "assistant"]
 ChatMessage = ChatSystemMessageTypedDict | ChatUserMessageTypedDict | ChatAssistantMessageTypedDict

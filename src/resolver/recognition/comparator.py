@@ -6,8 +6,6 @@ from dataclasses import dataclass
 import imagehash
 from imagehash import ImageHash
 
-from .cache_config import INDEX_CACHE_DIR
-
 # per https://tmikonen.github.io/quantitatively/2020-01-01-magic-card-detector/
 # the closest candidate is only trusted once it's this many standard deviations
 # below the mean of every other candidate's distance (I do not pretend to have

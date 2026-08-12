@@ -1,10 +1,7 @@
 """Shared constants for interacting with and locally caching reference data."""
 
-from pathlib import Path
+from ..paths import PROJECT_ROOT
 
-# required to ensure cache files are always written to the same
-# location regardless of current cwd at runtime
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 CACHE_DIR = PROJECT_ROOT / "reference_cache"
 
 # CacheBuilder's exclusive domain: raw data fetched straight from source (Scryfall/WoTC)

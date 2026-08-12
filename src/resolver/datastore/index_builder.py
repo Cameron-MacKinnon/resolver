@@ -6,8 +6,8 @@ from pathlib import Path
 
 import cv2
 
+from ..recognition.hasher import Hasher
 from .cache_config import IMAGE_VARIANTS, INDEX_CACHE_DIR, RAW_CACHE_DIR
-from .hasher import Hasher
 
 
 class IndexType(Enum):

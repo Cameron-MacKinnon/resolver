@@ -1,11 +1,11 @@
 import json
 from pathlib import Path
 
-from .agent import OpenRouterAgent
-from .cache_builder import CacheBuilder, CacheType
-from .index_builder import IndexBuilder, IndexType
-from .index_store import IndexStore
-from .recognition_pipeline import RecognitionPipeline
+from .chat.agent import OpenRouterAgent
+from .datastore.cache_builder import CacheBuilder, CacheType
+from .datastore.index_builder import IndexBuilder, IndexType
+from .datastore.index_store import IndexStore
+from .recognition.recognition_pipeline import RecognitionPipeline
 
 # local test outputs go here
 output_dir = Path("test_output")

@@ -3,12 +3,12 @@ from pathlib import Path
 import cv2
 from cv2.typing import MatLike
 
-from .cache_config import PROJECT_ROOT
+from ..datastore.cache_config import PROJECT_ROOT
+from ..datastore.index_store import IndexStore
 from .card_detector import CardDetector
 from .comparator import Comparator, MatchResult
 from .frame_selector import FrameSelector
 from .hasher import Hasher
-from .index_store import IndexStore
 from .scanner import Scanner
 
 
