@@ -85,7 +85,7 @@ class ChatSession:
             # tool_call_id ties each result back to the specific call that
             # asked for it, since a single turn can request several at once
             for call in message.tool_calls:
-                self.view.show_tool_usage(f"Using {call.function.name}...")
+                self.view.show_tool_usage(f"{self.tools.label_for(call.function.name)}...")
                 result = self.tools.dispatch(
                     call.function.name, call.function.arguments
                 )

@@ -8,13 +8,15 @@ from ..datastore.index_lookup import IndexLookup
 
 class _ToolEntry(TypedDict):
     """The full definition of a single agent-callable tool: the function to
-    run, plus the description/parameters schema shown to the model. Kept as
-    one entry (rather than parallel dicts) so a tool can't exist in dispatch()
-    without also existing in schemas(), or vice versa."""
+    run, the description/parameters schema shown to the model, and a plain-
+    English label for our own display purposes (e.g. logging tool usage).
+    Kept as one entry (rather than parallel dicts) so a tool can't exist in
+    dispatch() without also existing in schemas(), or vice versa."""
 
     callable: Callable[..., Any]
     description: str
     parameters: dict[str, Any]
+    label: str
 
 
 class AgentTools:
@@ -26,6 +28,7 @@ class AgentTools:
         self._tools: dict[str, _ToolEntry] = {
             "get_card_data_by_name": {
                 "callable": index_lookup.get_card_data_by_name,
+                "label": "Looking up card details",
                 "description": (
                     "Look up a card's basic details (name, mana cost, type, "
                     "oracle text, id) by its exact name. This alone is not "
@@ -42,6 +45,7 @@ class AgentTools:
             },
             "get_card_context": {
                 "callable": index_lookup.get_card_context,
+                "label": "Gathering full card context",
                 "description": (
                     "Get full context for a card - details, rulings, and "
                     "keyword definitions - by its scryfall id. Use this "
@@ -58,6 +62,7 @@ class AgentTools:
             },
             "get_keyword_definition": {
                 "callable": index_lookup.get_keyword_definition,
+                "label": "Checking keyword definition",
                 "description": (
                     "Get the official rules definition of a keyword ability "
                     "(e.g. Flying, Trample, Vigilance). Always call this "
@@ -74,6 +79,7 @@ class AgentTools:
             },
             "get_rule_tree": {
                 "callable": index_lookup.get_rule_tree,
+                "label": "Consulting the comprehensive rules",
                 "description": (
                     "Get the official text of a numbered rule (e.g. '510', "
                     "'702.4a'), plus every rule and subrule beneath it in "
@@ -93,6 +99,7 @@ class AgentTools:
             },
             "get_card_rulings": {
                 "callable": index_lookup.get_card_rulings,
+                "label": "Checking official rulings",
                 "description": (
                     "Get official rulings for a card. Requires the card's "
                     "oracle_id - call get_card_data_by_name first if you "
@@ -120,6 +127,12 @@ class AgentTools:
             }
             for name, tool in self._tools.items()
         ]
+
+    def label_for(self, name: str) -> str:
+        """Return the plain-English label for a registered tool, for display
+        purposes (e.g. logging which tool is being called) rather than
+        showing the raw function name to the user."""
+        return self._tools[name]["label"]
 
     def dispatch(self, name: str, arguments_json: str) -> str:
         """Run the named tool with the model-supplied arguments (a JSON string
