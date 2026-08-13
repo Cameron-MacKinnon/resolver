@@ -29,7 +29,7 @@ STARTUP_BANNER = Panel(
         Align.center(Text("R E S O L V E R", style="bold bright_magenta")),
         Align.center(
             Text(
-                "Magic: The Gathering card recognition & rules assistant",
+                "MTG card recognition & rules assistant",
                 style="dim",
             )
         ),
@@ -41,11 +41,11 @@ STARTUP_BANNER = Panel(
 
 MENU = (
     "\n"
-    "[bold cyan]1[/]) identify card\n"
-    "[bold cyan]2[/]) identify card and ask an LLM about it\n"
-    "[bold cyan]3[/]) run cache generation\n"
-    "[bold cyan]4[/]) run index generation\n"
-    "[bold cyan]q[/]) quit\n"
+    "[bold cyan]1[/]) Identify card\n"
+    "[bold cyan]2[/]) Identify and chat\n"
+    "[bold cyan]3[/]) Run cache generation\n"
+    "[bold cyan]4[/]) Run index generation\n"
+    "[bold cyan]q[/]) Quit\n"
 )
 
 
@@ -76,7 +76,7 @@ def ask_llm_about_card(
     """Identify a card, then send the resulting payload to an LLM as a smoke test."""
     payload = recognition_pipeline.run()
     if payload is None:
-        print("no confident match - nothing to send")
+        print("No confident match - check conditions and try again")
         return
 
     session = ChatSession(
