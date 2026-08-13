@@ -76,8 +76,13 @@ class TerminalChatView:
         )
 
     def show_tool_usage(self, text: str) -> None:
-        """Displays text about agentic tool uses."""
-        self.console.print(f"[dim magenta]{text}[/]")
+        """Displays text about agentic tool uses.
+
+        Plain dim italic (no magenta) so it reads as a quiet aside distinct
+        from the magenta-toned thinking spinner and reply panel, rather than
+        blending into either.
+        """
+        self.console.print(f"[dim italic]{text}[/]", justify="left")
 
     def get_user_input(self) -> str | None:
         """Displays text prompting a user for input, and returns the captured input."""
