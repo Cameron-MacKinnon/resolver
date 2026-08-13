@@ -6,8 +6,8 @@ from rich.panel import Panel
 from rich.rule import Rule
 from rich.status import Status
 
-# MTG-flavored spinner titles shown while waiting on a response, picked at
-# random each time instead of a single generic "Working..."
+# MTG-flavored spinner titles shown while waiting on a response, cycled
+# through each time the spinner is loaded..."
 _THINKING_MESSAGES = [
     "Resolving the stack…",
     "Counterspelling…",
@@ -21,19 +21,19 @@ _THINKING_MESSAGES = [
     "Shuffling up…",
     "Scrying…",
     "Reading the fine print…",
-    "Consulting the Comprehensive Rules…",
     "Triggering an ability…",
     "Putting it on the stack…",
     "Checking for hexproof…",
     "Casting at instant speed…",
     "Untapping for value…",
-    "Racking up +1/+1 counters…",
     "Milling for value…",
     "Tapping out…",
     "Holding up interaction…",
-    "Blocking (or not)…",
     "Cracking a fetchland…",
-    "Waiting for the smoke to clear…",
+    "Mulliganing to six…",
+    "Arguing about commander damage…",
+    "Forgetting to untap during the untap step…",
+    "Missing a land drop…",
 ]
 
 
