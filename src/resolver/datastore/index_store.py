@@ -44,6 +44,14 @@ class EmptyKeywordIndexError(IndexLoadError):
     """Raised when the keyword index file exists but is empty."""
 
 
+class MissingRuleIndexError(IndexLoadError):
+    """Raised when the rule index file is missing."""
+
+
+class EmptyRuleIndexError(IndexLoadError):
+    """Raised when the rule index file exists but is empty."""
+
+
 class MissingHashIndexError(IndexLoadError):
     """Raised when the image hash index file is missing."""
 
@@ -89,6 +97,11 @@ class IndexStore:
             INDEX_CACHE_DIR / "keyword_index.json",
             MissingKeywordIndexError,
             EmptyKeywordIndexError,
+        )
+        self.rule_index: dict[str, dict] = self._load_json_index(
+            INDEX_CACHE_DIR / "rule_index.json",
+            MissingRuleIndexError,
+            EmptyRuleIndexError,
         )
         self.hash_index: list[dict] = self._load_jsonl_index(
             INDEX_CACHE_DIR / "hash_index.jsonl",

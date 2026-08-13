@@ -56,6 +56,50 @@ class IndexLookup:
         """For a given keyword, return the definition as per the official rules"""
         return self.index_store.keyword_index.get(keyword)
 
+    def get_rule(self, rule_number: str) -> dict | None:
+        """For a given rule number (e.g. "702.4a"), return its entry from the
+        official rules: text, plus the section it belongs to."""
+        return self.index_store.rule_index.get(rule_number)
+
+    def get_rule_children(self, rule_number: str) -> list[dict]:
+        """Return the direct subrules of a given rule number (e.g. "702.4" ->
+        "702.4a", "702.4b", ...), letting a caller walk the rule tree downward.
+
+        Matches on rule_number immediately followed by a letter, not a digit,
+        so "100.1" doesn't pick up the unrelated rule "100.10".
+        """
+        return [
+            entry
+            for number, entry in self.index_store.rule_index.items()
+            if number.startswith(rule_number) and number[len(rule_number) :].isalpha()
+        ]
+
+    def get_rule_tree(self, rule_number: str) -> list[dict]:
+        """Return a rule's own entry (if any) plus every rule/subrule beneath
+        it at any depth, in document order - e.g. "510" returns 510 itself
+        (if indexed), 510.1, 510.1a, 510.1b, 510.2, etc. Lets a caller pull
+        a whole section or rule's full picture in one call instead of
+        walking level by level with get_rule/get_rule_children themselves.
+
+        A number is a descendant if it extends rule_number with ".<digits>"
+        (one level down to a rule) and/or "<letters>" (one level down to a
+        subrule) - checking only the first extension step is enough to
+        catch descendants at any depth, since that's the full extent of the
+        section/rule/subrule grammar.
+        """
+        descendants = []
+        for number, entry in self.index_store.rule_index.items():
+            if not number.startswith(rule_number) or number == rule_number:
+                continue
+            remainder = number[len(rule_number) :]
+            if (remainder[0] == "." and remainder[1:2].isdigit()) or remainder[
+                0
+            ].isalpha():
+                descendants.append(entry)
+
+        self_entry = self.index_store.rule_index.get(rule_number)
+        return ([self_entry] if self_entry is not None else []) + descendants
+
     def get_card_rulings(self, oracle_id: str) -> list[dict]:
         """For a given oracle_id, return all associated official rulings assosciated with this card"""
         return self.index_store.rulings_index.get(oracle_id, [])

@@ -72,6 +72,25 @@ class AgentTools:
                     "required": ["keyword"],
                 },
             },
+            "get_rule_tree": {
+                "callable": index_lookup.get_rule_tree,
+                "description": (
+                    "Get the official text of a numbered rule (e.g. '510', "
+                    "'702.4a'), plus every rule and subrule beneath it in "
+                    "one call - e.g. '510' returns 510 itself (if it has "
+                    "text), 510.1, 510.1a, 510.1b, 510.2, and so on. Card "
+                    "text, keyword definitions, and rulings often reference "
+                    "a specific rule number ('see rule 510, \"Combat Damage "
+                    "Step\"') - call this to resolve exactly what it (and "
+                    "everything under it) says rather than guessing from "
+                    "memory."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {"rule_number": {"type": "string"}},
+                    "required": ["rule_number"],
+                },
+            },
             "get_card_rulings": {
                 "callable": index_lookup.get_card_rulings,
                 "description": (

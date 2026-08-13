@@ -1,4 +1,5 @@
 import json
+import re
 import time
 from dataclasses import asdict, dataclass
 from enum import Enum
@@ -17,6 +18,7 @@ class IndexType(Enum):
     CARD_DATA = "card_data"
     KEYWORD = "keyword"
     ORACLE_ID = "oracle_id"
+    RULE = "rule"
 
 
 @dataclass
@@ -33,6 +35,14 @@ class HashEntry:
     face_index: int
     variant: str
     hash: str
+
+
+@dataclass
+class RuleEntry:
+    number: str
+    text: str
+    section: str
+    section_title: str
 
 
 @dataclass
@@ -68,11 +78,11 @@ class CardDataCacheEmptyError(IndexBuilderError):
 
 
 class RulesCacheMissingError(IndexBuilderError):
-    """raised when a user tries to build the keyword index before the rules cache exists"""
+    """raised when a user tries to build the keyword or rule index before the rules cache exists"""
 
 
 class RulesCacheEmptyError(IndexBuilderError):
-    """raised when a user tries to build the keyword index but the rules cache is empty"""
+    """raised when a user tries to build the keyword or rule index but the rules cache is empty"""
 
 
 class InvalidIndexTypeError(IndexBuilderError):
@@ -433,6 +443,114 @@ class IndexBuilder:
         elapsed = time.perf_counter() - start_time
         print(f"keyword index built in {elapsed:.1f}s ({len(keyword_index)} keywords)")
 
+    def build_rule_index(self) -> None:
+        """Parse the official rules text to extract every numbered rule and subrule,
+        keyed by its rule number, and persist as JSON.
+
+        Each entry also carries the immediate section (e.g. "702", "Keyword
+        Abilities") it belongs to, so a caller can identify sibling/parent rules
+        without re-parsing rules.txt. Section and part headers (e.g. "100. General",
+        "1. Game Concepts") aren't indexed as entries in their own right, only as
+        metadata attached to the rules that fall under them - a rule's own number
+        already encodes its lineage (e.g. "100.1a" descends from "100.1", which
+        descends from section "100"), so a caller can walk the tree via prefix
+        matching against this index's keys.
+        """
+        start_time = time.perf_counter()
+
+        rules_text_path = RAW_CACHE_DIR / "rules.txt"
+        rule_index_path = INDEX_CACHE_DIR / "rule_index.json"
+        INDEX_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+        # first, check that the rules file exists to build the index from
+        if not rules_text_path.exists():
+            raise RulesCacheMissingError(
+                f'rules file does not exist, expected at "{rules_text_path.name}"'
+            )
+        if rules_text_path.stat().st_size == 0:
+            raise RulesCacheEmptyError(
+                f'rules file exists at "{rules_text_path.name}", but contains no data'
+            )
+
+        # Find the beginning of the numbered rules body and the start of the
+        # Glossary, which marks its end. "1. Game Concepts" appears twice in
+        # the file - once in the table of contents, once as the real heading -
+        # so the body starts at the second occurrence.
+        lines = rules_text_path.read_text().split("\n")
+        body_start = [i for i, line in enumerate(lines) if line == "1. Game Concepts"][
+            -1
+        ]
+        glossary_start = max(i for i, line in enumerate(lines) if line == "Glossary")
+        body = lines[body_start:glossary_start]
+
+        # a part/section header, e.g. "1. Game Concepts" or "100. General"
+        header_pattern = re.compile(r"^(\d+)\. (.+)$")
+        # a rule, e.g. "100.1. text..." (occasionally missing its trailing period)
+        rule_pattern = re.compile(r"^(\d+\.\d+)\.?\s(.+)$")
+        # a subrule, e.g. "100.1a text..." (occasionally has a stray trailing period)
+        subrule_pattern = re.compile(r"^(\d+\.\d+[a-z]+)\.?\s(.+)$")
+        # a clarifying example following a rule/subrule, folded into its text
+        example_pattern = re.compile(r"^Example: (.+)$")
+
+        rule_index: dict[str, dict] = {}
+        current_section = ""
+        current_section_title = ""
+        last_number: str | None = None
+        for line in body:
+            if line.strip() == "":
+                continue
+
+            if match := rule_pattern.match(line):
+                number, text = match.group(1), match.group(2)
+                rule_index[number] = asdict(
+                    RuleEntry(
+                        number=number,
+                        text=text,
+                        section=current_section,
+                        section_title=current_section_title,
+                    )
+                )
+                last_number = number
+                continue
+
+            if match := subrule_pattern.match(line):
+                number, text = match.group(1), match.group(2)
+                rule_index[number] = asdict(
+                    RuleEntry(
+                        number=number,
+                        text=text,
+                        section=current_section,
+                        section_title=current_section_title,
+                    )
+                )
+                last_number = number
+                continue
+
+            if match := header_pattern.match(line):
+                # only section headers (>= 100) matter for tree-walking; part
+                # headers (1-9) are too coarse to be worth attaching to a rule
+                number, title = match.group(1), match.group(2)
+                if int(number) >= 100:
+                    current_section, current_section_title = number, title
+                last_number = None
+                continue
+
+            if match := example_pattern.match(line):
+                assert last_number is not None, (
+                    f"found an Example with no preceding rule to attach it to: {line!r}"
+                )
+                rule_index[last_number]["text"] += " " + match.group(1)
+                continue
+
+            raise ValueError(f"unrecognised line in rules body: {line!r}")
+
+        # write the built index to disk
+        with open(rule_index_path, "w") as file:
+            json.dump(rule_index, file, indent=2, ensure_ascii=False)
+
+        elapsed = time.perf_counter() - start_time
+        print(f"rule index built in {elapsed:.1f}s ({len(rule_index)} rules)")
+
     def build_oracle_id_index(self) -> None:
         """Map each oracle_id to a single representative id and persist as a JSON file.
 
@@ -483,7 +601,7 @@ class IndexBuilder:
         )
 
     def build_index(self, index_type: IndexType) -> None:
-        """Build the requested index (phash, rulings, name, card data, keyword, or oracle_id) by type."""
+        """Build the requested index (phash, rulings, name, card data, keyword, rule, or oracle_id) by type."""
         match index_type:
             case IndexType.PHASH:
                 self.build_phash_index()
@@ -495,6 +613,8 @@ class IndexBuilder:
                 self.build_card_data_index()
             case IndexType.KEYWORD:
                 self.build_keyword_index()
+            case IndexType.RULE:
+                self.build_rule_index()
             case IndexType.ORACLE_ID:
                 self.build_oracle_id_index()
             case _:

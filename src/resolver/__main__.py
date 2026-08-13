@@ -42,6 +42,7 @@ def run_index_generation() -> None:
     builder.build_index(IndexType.ORACLE_ID)
     builder.build_index(IndexType.RULINGS)
     builder.build_index(IndexType.KEYWORD)
+    builder.build_index(IndexType.RULE)
     builder.build_index(IndexType.PHASH)
 
 
