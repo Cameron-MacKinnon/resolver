@@ -1,6 +1,12 @@
 import json
 from pathlib import Path
 
+from rich import box
+from rich.align import Align
+from rich.console import Console, Group
+from rich.panel import Panel
+from rich.text import Text
+
 from .chat.agent_tools import AgentTools
 from .chat.chat_session import ChatSession
 from .chat.conversation import Conversation
@@ -16,13 +22,31 @@ MODEL = "anthropic/claude-sonnet-5"
 # local test outputs go here
 output_dir = Path("test_output")
 
-MENU = """
-1) identify card
-2) identify card and ask an LLM about it
-3) run cache generation
-4) run index generation
-q) quit
-"""
+console = Console()
+
+STARTUP_BANNER = Panel(
+    Group(
+        Align.center(Text("R E S O L V E R", style="bold bright_magenta")),
+        Align.center(
+            Text(
+                "Magic: The Gathering card recognition & rules assistant",
+                style="dim",
+            )
+        ),
+    ),
+    border_style="bright_magenta",
+    box=box.DOUBLE,
+    padding=(1, 2),
+)
+
+MENU = (
+    "\n"
+    "[bold cyan]1[/]) identify card\n"
+    "[bold cyan]2[/]) identify card and ask an LLM about it\n"
+    "[bold cyan]3[/]) run cache generation\n"
+    "[bold cyan]4[/]) run index generation\n"
+    "[bold cyan]q[/]) quit\n"
+)
 
 
 def run_cache_generation() -> None:
@@ -65,6 +89,10 @@ def ask_llm_about_card(
 
 
 def main() -> None:
+    # display startup banner and announce app start
+    console.print(STARTUP_BANNER)
+    console.print("[dim bold magenta]Initialising...[/]")
+
     # load every index once, then share it across whatever needs it
     index_store = IndexStore()
     index_lookup = IndexLookup(index_store)
@@ -72,9 +100,12 @@ def main() -> None:
     # init recognition pipeline
     recognition_pipeline = RecognitionPipeline(index_store)
 
+    # display init complete message
+    console.print("[dim bold magenta]Initialisation complete[/]")
+
     while True:
-        print(MENU)
-        choice = input("> ").strip().lower()
+        console.print(MENU)
+        choice = console.input("[bold cyan]>[/] ").strip().lower()
         if choice == "1":
             print(json.dumps(recognition_pipeline.run(), indent=2, ensure_ascii=False))
         elif choice == "2":
@@ -86,7 +117,7 @@ def main() -> None:
         elif choice == "q":
             break
         else:
-            print(f"unrecognised option: '{choice}'")
+            console.print(f"[yellow]unrecognised option:[/] '{choice}'")
 
 
 if __name__ == "__main__":
