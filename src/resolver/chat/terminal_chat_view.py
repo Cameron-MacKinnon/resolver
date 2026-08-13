@@ -1,8 +1,40 @@
+import random
+
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.rule import Rule
 from rich.status import Status
+
+# MTG-flavored spinner titles shown while waiting on a response, picked at
+# random each time instead of a single generic "Working..."
+_THINKING_MESSAGES = [
+    "Resolving the stack…",
+    "Counterspelling…",
+    "Checking state-based actions…",
+    "Passing priority…",
+    "Paying the mana cost…",
+    "Untapping lands…",
+    "Declaring attackers…",
+    "Assigning combat damage…",
+    "Searching the library…",
+    "Shuffling up…",
+    "Scrying…",
+    "Reading the fine print…",
+    "Consulting the Comprehensive Rules…",
+    "Triggering an ability…",
+    "Putting it on the stack…",
+    "Checking for hexproof…",
+    "Casting at instant speed…",
+    "Untapping for value…",
+    "Racking up +1/+1 counters…",
+    "Milling for value…",
+    "Tapping out…",
+    "Holding up interaction…",
+    "Blocking (or not)…",
+    "Cracking a fetchland…",
+    "Waiting for the smoke to clear…",
+]
 
 
 class TerminalChatView:
@@ -27,8 +59,10 @@ class TerminalChatView:
         self.console.print(f"[bold green]Recognised:[/] [bold]{name}[/]")
 
     def thinking(self) -> Status:
-        """Return a rich context manager to continually render a loading spinner."""
-        return self.console.status("[dim magenta]Working...[/]")
+        """Return a rich context manager to continually render a loading spinner
+        with a randomly chosen, MTG-flavored title."""
+        message = random.choice(_THINKING_MESSAGES)
+        return self.console.status(f"[dim magenta]{message}[/]")
 
     def show_reply(self, text: str) -> None:
         """Displays an LLM response message in it's own dedicated panel."""
