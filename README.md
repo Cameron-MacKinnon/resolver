@@ -1,6 +1,6 @@
 # Resolver
 
-This project was devised out of a desire to streamline the deeply 
+This project was devised out of a desire to streamline the deeply
 challening experience of figuring out how Magic: The Gathering (MTG) works.
 To that end, I built this project - I call it Resolver (if you're reading
 this, chances are you get what I'm going for with that).
@@ -139,6 +139,10 @@ on the concept and approach laid out in
 Go and read it, it's excellent, and this project wouldn't exist in its current
 form without it, so [tmikonen](https://github.com/tmikonen), if you ever happen to
 see this, thank you!
+
+None of this works without [Scryfall](https://scryfall.com) either; every
+card, image, and ruling this project indexes comes straight from their 
+excellent API.
 
 ## Legal
 
