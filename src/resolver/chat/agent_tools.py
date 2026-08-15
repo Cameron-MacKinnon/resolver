@@ -28,7 +28,7 @@ class AgentTools:
         self._tools: dict[str, _ToolEntry] = {
             "get_card_data_by_name": {
                 "callable": index_lookup.get_card_data_by_name,
-                "label": "Looking up card details",
+                "label": "Looking up card information",
                 "description": (
                     "Look up a card's basic details (name, mana cost, type, "
                     "oracle text, id) by its exact name. This alone is not "
@@ -62,7 +62,7 @@ class AgentTools:
             },
             "get_keyword_definition": {
                 "callable": index_lookup.get_keyword_definition,
-                "label": "Checking keyword definition",
+                "label": "Looking up keyword definition",
                 "description": (
                     "Get the official rules definition of a keyword ability "
                     "(e.g. Flying, Trample, Vigilance). Always call this "
@@ -79,7 +79,7 @@ class AgentTools:
             },
             "get_rule_tree": {
                 "callable": index_lookup.get_rule_tree,
-                "label": "Consulting the comprehensive rules",
+                "label": "Checking the official game rules",
                 "description": (
                     "Get the official text of a numbered rule (e.g. '510', "
                     "'702.4a'), plus every rule and subrule beneath it in "
@@ -99,7 +99,7 @@ class AgentTools:
             },
             "get_card_rulings": {
                 "callable": index_lookup.get_card_rulings,
-                "label": "Checking official rulings",
+                "label": "Checking for card rulings",
                 "description": (
                     "Get official rulings for a card. Requires the card's "
                     "oracle_id - call get_card_data_by_name first if you "
@@ -114,7 +114,7 @@ class AgentTools:
         }
 
     def schemas(self) -> list[ChatFunctionToolFunctionTypedDict]:
-        """Build the `tools` payload for send() - one entry per registered
+        """Build the `tools` payload for send(), one entry per registered
         tool, in the JSON-schema shape the model expects to see."""
         return [
             {
