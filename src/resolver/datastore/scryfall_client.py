@@ -5,6 +5,8 @@ from enum import Enum
 import requests
 from requests.adapters import HTTPAdapter
 
+from .cache_config import USER_AGENT
+
 # CacheBuilder currently supports 40 concurrent workers, this connection
 # pool is sized to comfortably accomodate that
 CONNECTION_POOL_SIZE = 45
@@ -28,7 +30,7 @@ class ScryfallClient:
     def __init__(self) -> None:
         self.bulk_url: str = "https://api.scryfall.com/bulk-data"
         self.headers: dict[str, str] = {
-            "User-Agent": "MTGLookupPoc/0.1",
+            "User-Agent": USER_AGENT,
             "Accept": "application/json",
         }
 
@@ -46,6 +48,7 @@ class ScryfallClient:
         # file download, so grab that first
         metadata_url = f"{self.bulk_url}/{bulk_type.value}"
         metadata_response = self.session.get(url=metadata_url, headers=self.headers)
+        metadata_response.raise_for_status()
         download_uri = metadata_response.json()["jsonl_download_uri"]
 
         # hit the actual download location to fetch bulk data, returns
@@ -57,6 +60,7 @@ class ScryfallClient:
             ) as response,
             gzip.GzipFile(fileobj=response.raw) as decompressed,
         ):
+            response.raise_for_status()
             data = [json.loads(line) for line in decompressed]
 
         return data
@@ -65,4 +69,5 @@ class ScryfallClient:
         """Download a single card image from a Scryfall-provided URL."""
         # fetch the image and return to caller
         response = self.session.get(url=url, headers=self.headers)
+        response.raise_for_status()
         return response.content

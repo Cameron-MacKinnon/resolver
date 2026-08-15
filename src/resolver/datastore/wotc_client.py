@@ -2,6 +2,8 @@ import re
 
 import requests
 
+from .cache_config import USER_AGENT
+
 
 class RulesLinkNotFoundError(Exception):
     """raised when the rules page's .txt download link can't be found"""
@@ -12,7 +14,7 @@ class WotcClient:
 
     def __init__(self) -> None:
         self.rules_page_url = "https://magic.wizards.com/en/rules"
-        self.headers = {"User-Agent": "MTGLookupPoc/0.1"}
+        self.headers = {"User-Agent": USER_AGENT}
 
     def _discover_latest_txt_url(self) -> str:
         """Scrape the rules page for the current Comprehensive Rules .txt download link.
