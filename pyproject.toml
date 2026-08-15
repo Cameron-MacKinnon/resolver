@@ -1,7 +1,7 @@
 [project]
 name = "resolver"
-version = "0.1.0"
-description = "Add your description here"
+version = "1.0.0"
+description = "Identifies and explains Magic: The Gathering cards using a custom LLM harness grounded in official card data, rules, and rulings."
 readme = "README.md"
 authors = [
     { name = "Cameron-MacKinnon"}

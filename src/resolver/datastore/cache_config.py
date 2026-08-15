@@ -3,7 +3,7 @@
 from ..paths import PROJECT_ROOT
 
 # identifies this project to Scryfall/WotC's servers, per their API etiquette
-USER_AGENT = "resolver/0.1 (+https://github.com/Cameron-MacKinnon/resolver)"
+USER_AGENT = "resolver/1.0 (+https://github.com/Cameron-MacKinnon/resolver)"
 
 CACHE_DIR = PROJECT_ROOT / "reference_cache"
 
