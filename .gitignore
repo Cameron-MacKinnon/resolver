@@ -4,9 +4,6 @@ reference_cache/
 # local test outputs / captured images
 test_output/
 
-# docs (not ready to publish yet)
-docs/
-
 # Python
 __pycache__/
 *.py[cod]
