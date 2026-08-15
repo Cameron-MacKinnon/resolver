@@ -15,13 +15,9 @@ class FrameSelector:
         self.batch: list[MatLike] = images
         self.highest_score: float = -1
         self.sharpest_image: MatLike | None = None
-        self.sharpest_image_index: int | None = None
 
     def _convert_image_to_grayscale(self, image: MatLike) -> MatLike:
-        """Convert an image to grayscale if not already (necessary for Laplacian variance)
-
-        See docs/image_pipeline_reference.md for implementation details.
-        """
+        """Convert an image to grayscale if not already (necessary for Laplacian variance)."""
         if len(image.shape) == 3:
             return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         else:
@@ -30,7 +26,10 @@ class FrameSelector:
     def select_sharpest_image(self) -> MatLike:
         """Pick the least-blurry frame out of self.batch using Laplacian variance.
 
-        See docs/image_pipeline_reference.md for implementation details.
+        Laplacian variance is a standard blur-detection heuristic: the
+        Laplacian highlights edges, and a sharp image has many strong,
+        varied edges while a blurry one has fewer/weaker ones, so the
+        variance of the Laplacian is highest for the sharpest frame.
         """
         for index, image in enumerate(self.batch):
             grayscale_image = self._convert_image_to_grayscale(image)
@@ -42,7 +41,6 @@ class FrameSelector:
             if score > self.highest_score:
                 self.highest_score = score
                 self.sharpest_image = image
-                self.sharpest_image_index = index
 
         # raise an error if something has gone horribly wrong here and there
         # is somehow no sharpest image

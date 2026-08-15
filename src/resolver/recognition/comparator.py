@@ -1,6 +1,4 @@
-import json
 import statistics
-import time
 from dataclasses import dataclass
 
 import imagehash

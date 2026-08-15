@@ -94,7 +94,7 @@ class ChatSession:
                 )
 
     def launch_chat_session(
-        self, payload: dict[str, dict | list | int] | None = None
+        self, payload: dict[str, dict | list] | None = None
     ) -> None:
         """Run a full terminal chat session: an optional first turn seeded
         with the recognised card's data, then a human-in-the-loop exchange

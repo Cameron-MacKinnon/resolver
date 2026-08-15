@@ -3,8 +3,8 @@ from pathlib import Path
 import cv2
 from cv2.typing import MatLike
 
-from ..datastore.cache_config import PROJECT_ROOT
-from ..datastore.index_store import IndexStore
+from ..datastore.index_lookup import IndexLookup
+from ..paths import PROJECT_ROOT
 from .card_detector import CardDetector
 from .comparator import Comparator, MatchResult
 from .frame_selector import FrameSelector
@@ -13,18 +13,22 @@ from .scanner import Scanner
 
 
 class RecognitionPipeline:
-    def __init__(self, index_store: IndexStore) -> None:
-        self.index_store = index_store
+    def __init__(self, index_lookup: IndexLookup) -> None:
+        self.index_lookup = index_lookup
 
         # init scanner
         self.scanner: Scanner = Scanner(camera_input=0)
 
         # init comparator (performs hash index preprocessing to cast
         # hex hashes back to ImageHash), we only want to do this once
-        self.comparator: Comparator = Comparator(index_store.hash_index)
+        self.comparator: Comparator = Comparator(index_lookup.index_store.hash_index)
 
         # create test output folder if not exists (only used for local auditing)
         Path(PROJECT_ROOT / "test_output").mkdir(exist_ok=True)
+
+    def release(self) -> None:
+        """Release the underlying camera device."""
+        self.scanner.release()
 
     def _hash_and_search(self, card: MatLike) -> MatchResult | None:
         """Generate a phash for the given card and return the match"""
@@ -36,45 +40,7 @@ class RecognitionPipeline:
 
         return result
 
-    def _get_linked_card_details(
-        self, match: MatchResult
-    ) -> dict[str, dict | list | int]:
-        """Uses the image recognition result to lookup the card details from the indexes
-        and form a single return payload"""
-        # get card details and unpack keys to use here
-        card_data = self.index_store.card_data_index[match.id]
-        oracle_id = card_data["oracle_id"]
-        keywords = card_data["keywords"]
-
-        # get rulings data (if any)
-        rulings = self.index_store.rulings_index.get(oracle_id, [])
-
-        # get keyword definitions (if any), skipping any keyword
-        # names that don't have an exact match in the glossary
-        keyword_definitions: dict[str, str] = {}
-        for keyword in keywords:
-            definition = self.index_store.keyword_index.get(keyword)
-            if definition is not None:
-                keyword_definitions[keyword] = definition
-
-        # build final payload
-        return {
-            "card_details": {
-                "name": card_data["name"],
-                "color_identity": card_data["color_identity"],
-                "mana_cost": card_data["mana_cost"],
-                "type_line": card_data["type_line"],
-                "oracle_text": card_data["oracle_text"],
-            },
-            "keyword_definitions": keyword_definitions,
-            "rulings": rulings,
-            "ids": {
-                "id": card_data["id"],
-                "oracle_id": card_data["oracle_id"],
-            },
-        }
-
-    def run(self) -> dict[str, dict | list | int] | None:
+    def run(self) -> dict[str, dict | list] | None:
         """Run the full image capture -> card recognition pipeline."""
         # capture image burst
         image_burst = self.scanner.capture_burst()
@@ -107,5 +73,6 @@ class RecognitionPipeline:
             return None
         best_match = max(matches, key=lambda entry: entry.score)
 
-        # lookup this cards details and return payload
-        return self._get_linked_card_details(best_match)
+        # lookup this card's full context (details, rulings, keyword
+        # definitions) via the same path every other caller uses
+        return self.index_lookup.get_card_context(best_match.id)

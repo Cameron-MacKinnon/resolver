@@ -112,28 +112,35 @@ def main() -> None:
     index_lookup = IndexLookup(index_store)
 
     # init recognition pipeline
-    recognition_pipeline = RecognitionPipeline(index_store)
+    recognition_pipeline = RecognitionPipeline(index_lookup)
 
     # display init complete message
     console.print("[dim bold magenta]Initialisation complete[/]")
 
-    while True:
-        console.print(MENU)
-        choice = console.input("[bold cyan]>[/] ").strip().lower()
-        if choice == "1":
-            print(json.dumps(recognition_pipeline.run(), indent=2, ensure_ascii=False))
-        elif choice == "2":
-            ask_llm_about_card(index_lookup, recognition_pipeline)
-        elif choice == "3":
-            start_chat(index_lookup)
-        elif choice == "4":
-            run_cache_generation()
-        elif choice == "5":
-            run_index_generation()
-        elif choice == "q":
-            break
-        else:
-            console.print(f"[yellow]unrecognised option:[/] '{choice}'")
+    try:
+        while True:
+            console.print(MENU)
+            choice = console.input("[bold cyan]>[/] ").strip().lower()
+            if choice == "1":
+                print(
+                    json.dumps(recognition_pipeline.run(), indent=2, ensure_ascii=False)
+                )
+            elif choice == "2":
+                ask_llm_about_card(index_lookup, recognition_pipeline)
+            elif choice == "3":
+                start_chat(index_lookup)
+            elif choice == "4":
+                run_cache_generation()
+            elif choice == "5":
+                run_index_generation()
+            elif choice == "q":
+                break
+            else:
+                console.print(f"[yellow]unrecognised option:[/] '{choice}'")
+    finally:
+        # always release the camera device, even if the loop above exits
+        # via an unhandled exception rather than the "q" menu option
+        recognition_pipeline.release()
 
 
 if __name__ == "__main__":
