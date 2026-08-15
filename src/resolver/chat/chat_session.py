@@ -49,14 +49,12 @@ class ChatSession:
         model will produce a real answer, so this loops: dispatch whatever
         was asked for, feed the results back in, and call send() again. This
         can happen several times in a row (a tool result might prompt the
-        model to ask for another tool), which is why this is a loop and not
-        a single if/else, we don't know in advance how many round-trips a
-        single human message will need.
+        model to ask for another tool).
         """
         while True:
-            # console.status()-style spinner wraps just the network call,
-            # so the view shows "thinking" for exactly as long as we're
-            # actually waiting on a response
+            # console.status() spinner wraps the network call, so the view
+            # shows "thinking" for exactly as long as we're actually waiting
+            # on a response
             with self.view.thinking():
                 response = client.chat.send(
                     model=self.model,
@@ -65,14 +63,14 @@ class ChatSession:
                 )
             message = response.choices[0].message
 
-            # no tool calls means this is a genuine answer - we're done
+            # no tool calls means this is a genuine answer, return to caller
             if not message.tool_calls:
                 return str(message.content)
 
             # the model wants to use one or more tools. Per the API's
             # protocol, the assistant's request to call tools has to be
             # recorded in memory first (as its own message, carrying
-            # tool_calls), before any of the individual tool results - the
+            # tool_calls), before any of the individual tool results as the
             # model needs to see its own request alongside the responses to
             # stay coherent on subsequent turns
             self.conversation.add_to_memory(
@@ -85,29 +83,33 @@ class ChatSession:
             # tool_call_id ties each result back to the specific call that
             # asked for it, since a single turn can request several at once
             for call in message.tool_calls:
-                self.view.show_tool_usage(f"{self.tools.label_for(call.function.name)}...")
+                self.view.show_tool_usage(
+                    f"{self.tools.label_for(call.function.name)}..."
+                )
                 result = self.tools.dispatch(
                     call.function.name, call.function.arguments
                 )
                 self.conversation.add_to_memory(
                     role="tool", content=result, tool_call_id=call.id
                 )
-            # loop back around: send() gets called again with the tool
-            # results now in memory, and the model decides what to do next
 
-    def launch_chat_session(self, payload: dict[str, dict | list | int]) -> None:
+    def launch_chat_session(
+        self, payload: dict[str, dict | list | int] | None = None
+    ) -> None:
         """Run a full terminal chat session: an optional first turn seeded
         with the recognised card's data, then a human-in-the-loop exchange
-        until the user signals they're done."""
+        until the user signals they're done. Pass no payload to start the
+        session with a blank slate"""
         self.view.show_banner(self.model)
 
         with OpenRouter(api_key=self.api_key) as client:
             try:
-                # the very first turn is special: instead of waiting on
+                # the very first turn is unique: instead of waiting on
                 # typed user input, we seed the conversation with the
                 # card payload from the recognition pipeline and let the
-                # model open with a summary
-                if self.conversation.first_message:
+                # model open with a summary. This is skipped entirely if
+                # there's no recognised card to seed it with
+                if self.conversation.first_message and payload is not None:
                     card_details = cast(dict, payload["card_details"])
                     card_name = cast(str, card_details["name"])
                     self.view.show_recognized_card(card_name)
@@ -120,7 +122,7 @@ class ChatSession:
                     self.conversation.first_message = False
 
                 # ordinary human turns: prompt, check for an exit signal
-                # (get_user_input returns None to signal termination. Then run
+                # (get_user_input returns None to signal termination). Then run
                 # the same send-and-maybe-use-tools cycle as above
                 while True:
                     self.view.show_divider()

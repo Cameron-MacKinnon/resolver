@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 
 from rich import box
 from rich.align import Align
@@ -17,13 +16,10 @@ from .datastore.index_lookup import IndexLookup
 from .datastore.index_store import IndexStore
 from .recognition.recognition_pipeline import RecognitionPipeline
 
+# Model of choice for chat
 MODEL = "anthropic/claude-sonnet-5"
 
-# local test outputs go here
-output_dir = Path("test_output")
-
-console = Console()
-
+# Displayed on app startup
 STARTUP_BANNER = Panel(
     Group(
         Align.center(Text("R E S O L V E R", style="bold bright_magenta")),
@@ -39,14 +35,19 @@ STARTUP_BANNER = Panel(
     padding=(1, 2),
 )
 
+# Displayed during main menu loop
 MENU = (
     "\n"
     "[bold cyan]1[/]) Identify card\n"
     "[bold cyan]2[/]) Identify and chat\n"
-    "[bold cyan]3[/]) Run cache generation\n"
-    "[bold cyan]4[/]) Run index generation\n"
+    "[bold cyan]3[/]) Chat to resolver\n"
+    "[bold cyan]4[/]) Run cache generation\n"
+    "[bold cyan]5[/]) Run index generation\n"
     "[bold cyan]q[/]) Quit\n"
 )
+
+# Init rich console
+console = Console()
 
 
 def run_cache_generation() -> None:
@@ -73,12 +74,14 @@ def run_index_generation() -> None:
 def ask_llm_about_card(
     index_lookup: IndexLookup, recognition_pipeline: RecognitionPipeline
 ) -> None:
-    """Identify a card, then send the resulting payload to an LLM as a smoke test."""
+    """Identify a card and use it's data to seed a chat with the reoslver LLM."""
+    # identify card and get card data
     payload = recognition_pipeline.run()
     if payload is None:
-        print("No confident match - check conditions and try again")
+        print("No confident match, check conditions and try again")
         return
 
+    # start chat session
     session = ChatSession(
         conversation=Conversation(),
         view=TerminalChatView(),
@@ -86,6 +89,17 @@ def ask_llm_about_card(
         model=MODEL,
     )
     session.launch_chat_session(payload)
+
+
+def start_chat(index_lookup: IndexLookup) -> None:
+    """Launch a chat session with the resolver LLM."""
+    session = ChatSession(
+        conversation=Conversation(),
+        view=TerminalChatView(),
+        tools=AgentTools(index_lookup),
+        model=MODEL,
+    )
+    session.launch_chat_session()
 
 
 def main() -> None:
@@ -111,8 +125,10 @@ def main() -> None:
         elif choice == "2":
             ask_llm_about_card(index_lookup, recognition_pipeline)
         elif choice == "3":
-            run_cache_generation()
+            start_chat(index_lookup)
         elif choice == "4":
+            run_cache_generation()
+        elif choice == "5":
             run_index_generation()
         elif choice == "q":
             break
