@@ -6,12 +6,10 @@ from rich.panel import Panel
 from rich.rule import Rule
 from rich.status import Status
 
-# MTG-flavored spinner titles shown while waiting on a response, cycled
-# through each time the spinner is loaded..."
+# MTG-flavored spinner titles to show while waiting on a response"
 _THINKING_MESSAGES = [
     "Resolving the stack…",
     "Counterspelling…",
-    "Checking state-based actions…",
     "Passing priority…",
     "Paying the mana cost…",
     "Untapping lands…",
