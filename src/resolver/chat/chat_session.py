@@ -35,7 +35,7 @@ class ChatSession:
         self.api_key = os.environ.get("OPENROUTER_API_KEY")
         if self.api_key is None:
             raise MissingApiKeyError(
-                'API key not set -add it to ".env" at project root'
+                'API key not set - add it to ".env" at project root'
             )
 
     def _get_reply(self, client: OpenRouter) -> str:
@@ -99,7 +99,7 @@ class ChatSession:
         """Run a full terminal chat session: an optional first turn seeded
         with the recognised card's data, then a human-in-the-loop exchange
         until the user signals they're done. Pass no payload to start the
-        session with a blank slate"""
+        session with a blank slate."""
         self.view.show_banner(self.model)
 
         with OpenRouter(api_key=self.api_key) as client:

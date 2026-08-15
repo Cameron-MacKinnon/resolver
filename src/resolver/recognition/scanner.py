@@ -18,7 +18,7 @@ class CameraNotOpenedError(CameraError):
 
 
 class ImageNotCapturedError(CameraError):
-    """Raised when an image is not succesffuly captured during a burst"""
+    """Raised when an image is not successfully captured during a burst"""
 
 
 class Scanner:

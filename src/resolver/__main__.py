@@ -74,7 +74,7 @@ def run_index_generation() -> None:
 def ask_llm_about_card(
     index_lookup: IndexLookup, recognition_pipeline: RecognitionPipeline
 ) -> None:
-    """Identify a card and use it's data to seed a chat with the reoslver LLM."""
+    """Identify a card and use its data to seed a chat with the resolver LLM."""
     # identify card and get card data
     payload = recognition_pipeline.run()
     if payload is None:

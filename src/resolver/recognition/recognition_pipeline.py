@@ -58,7 +58,7 @@ class RecognitionPipeline:
                 Path(PROJECT_ROOT / "test_output" / f"detected_card_{index}.jpg"), card
             )
 
-        # search for matches and gather reults
+        # search for matches and gather results
         results: list[MatchResult | None] = []
         for card in card_candidates:
             results.append(self._hash_and_search(card))
@@ -66,7 +66,7 @@ class RecognitionPipeline:
         # drop any unmatched candidates and filter down to the single most
         # confident match; since we only expect a single card in the frame,
         # this also handles situations where the card gets detected twice
-        # (e.g., the absolute border and croppoed border of the card are
+        # (e.g., the absolute border and cropped border of the card are
         # identified as separate entities during card_detector's run)
         matches = [entry for entry in results if entry is not None]
         if not matches:

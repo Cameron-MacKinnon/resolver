@@ -8,7 +8,7 @@ from requests.adapters import HTTPAdapter
 from .cache_config import USER_AGENT
 
 # CacheBuilder currently supports 40 concurrent workers, this connection
-# pool is sized to comfortably accomodate that
+# pool is sized to comfortably accommodate that
 CONNECTION_POOL_SIZE = 45
 
 

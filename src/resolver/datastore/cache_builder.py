@@ -94,9 +94,10 @@ class CacheBuilder:
     def build_image_cache(self) -> None:
         """Download and cache desired image variants for every card in the card-data cache.
 
-        Requires build_card_cache() to have already run as this function reads
-        its output from disk rather than depending on in-memory state, this is
-        intentional so this can be run independently without re-fetching from Scryfall.
+        Requires build_cache(CacheType.CARD_DATA) to have already run, as this
+        function reads its output from disk rather than depending on in-memory
+        state - intentional, so this can be run independently without
+        re-fetching card data from Scryfall.
         """
         start_time = time.perf_counter()
 
@@ -181,7 +182,7 @@ class CacheBuilder:
         return [face["image_uris"] for face in record["card_faces"]]
 
     def build_cache(self, cache_type: CacheType) -> None:
-        """Build the requested cache (card data, rulings, or images) by type."""
+        """Build the requested cache (card data, rulings, images, or glossary) by type."""
         match cache_type:
             case CacheType.CARD_DATA:
                 self._build_data_cache(

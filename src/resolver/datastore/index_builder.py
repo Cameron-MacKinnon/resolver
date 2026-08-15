@@ -70,11 +70,13 @@ class RulingsCacheEmptyError(IndexBuilderError):
 
 
 class CardDataCacheMissingError(IndexBuilderError):
-    """raised when a user tries to build the names index before the card data cache exists"""
+    """raised when a user tries to build a card-data-derived index (name, card
+    data, or oracle_id) before the card data cache exists"""
 
 
 class CardDataCacheEmptyError(IndexBuilderError):
-    """raised when a user tries to build the names index but the card data cache is empty"""
+    """raised when a user tries to build a card-data-derived index (name, card
+    data, or oracle_id) but the card data cache is empty"""
 
 
 class RulesCacheMissingError(IndexBuilderError):
@@ -184,8 +186,8 @@ class IndexBuilder:
         """Compute a phash (perceptual hash) for every cached image and persist
         as a JSONL hash index.
 
-        This deisgned to be resumable if the process is interrupted for some
-        reason, previosuly hashed cards are skipped on subsequent runs.
+        This is designed to be resumable if the process is interrupted for some
+        reason - previously hashed cards are skipped on subsequent runs.
         """
         # start performance timer
         start_time = time.perf_counter()
@@ -284,7 +286,7 @@ class IndexBuilder:
 
         WoTC enforces name uniqueness for real gameplay cards, so a name
         maps to exactly one oracle_id in practice, and every reprint of a
-        card shares the same oracle_i. The one exception is non-gameplay
+        card shares the same oracle_id. The one exception is non-gameplay
         objects that share a name with a real card (e.g. art series cards,
         which have their own distinct oracle_id and no real oracle text);
         when that happens we keep whichever record actually has usable oracle
@@ -388,7 +390,7 @@ class IndexBuilder:
         print(f"card data index built in {elapsed:.1f}s ({len(card_data_index)} cards)")
 
     def build_keyword_index(self) -> None:
-        """Parse the offical rules text to extract keyword definitons and convert to a
+        """Parse the official rules text to extract keyword definitions and convert to a
         dict keyed by keyword, persist as JSON"""
         start_time = time.perf_counter()
 

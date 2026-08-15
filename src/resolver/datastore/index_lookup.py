@@ -101,7 +101,7 @@ class IndexLookup:
         return ([self_entry] if self_entry is not None else []) + descendants
 
     def get_card_rulings(self, oracle_id: str) -> list[dict]:
-        """For a given oracle_id, return all associated official rulings assosciated with this card"""
+        """For a given oracle_id, return all official rulings associated with this card"""
         return self.index_store.rulings_index.get(oracle_id, [])
 
     def get_card_context(self, scryfall_id: str) -> dict[str, dict | list] | None:

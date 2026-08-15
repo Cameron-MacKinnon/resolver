@@ -30,7 +30,7 @@ class CardDetector:
         return resized_image
 
     def _preprocess_image(self, resized_image: MatLike) -> MatLike:
-        # convert image to from BGR to LAB colour space and to seprate brightness
+        # convert image from BGR to LAB colour space to separate brightness
         # and colour information (we only care about normalising brightness here)
         lab_image = cv2.cvtColor(resized_image, cv2.COLOR_BGR2LAB)
         l_channel, a_channel, b_channel = cv2.split(lab_image)
@@ -105,7 +105,7 @@ class CardDetector:
             if width == 0 or height == 0:
                 continue
 
-            # calcuate orientation-agnostic aspect ratio
+            # calculate orientation-agnostic aspect ratio
             aspect_ratio = min(width, height) / max(width, height)
             if (CARD_RATIO - ratio_drift) <= aspect_ratio <= (CARD_RATIO + ratio_drift):
                 # approximate the hull's own corners instead of forcing a rectangle -

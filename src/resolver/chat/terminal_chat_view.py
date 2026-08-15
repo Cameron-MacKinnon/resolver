@@ -6,7 +6,7 @@ from rich.panel import Panel
 from rich.rule import Rule
 from rich.status import Status
 
-# MTG-flavored spinner titles to show while waiting on a response"
+# MTG-flavored spinner titles to show while waiting on a response
 _THINKING_MESSAGES = [
     "Resolving the stack…",
     "Counterspelling…",
